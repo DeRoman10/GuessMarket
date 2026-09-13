@@ -1,0 +1,85 @@
+/* Trading Style - Dark, Data-Driven (Binance/Bloomberg vibes) */
+.root {
+    -fx-font-family: "Segoe UI", Helvetica, Arial, sans-serif;
+}
+
+.main-background { -fx-background-color: #0b0e11; } /* Binance very dark background */
+.header-panel, .side-panel, .center-panel { -fx-background-color: #181a20; }
+.filter-bar {
+    -fx-background-color: #1f2329;
+    -fx-border-color: #2b3139;
+    -fx-border-width: 1px;
+    -fx-border-radius: 4px;
+    -fx-padding: 8px;
+}
+.dark-combo { -fx-text-fill: #FFFFFF; }
+.dark-combo .list-cell { -fx-text-fill: #FFFFFF; }
+
+.combo-box-popup .list-view {
+    -fx-background-color: #1f2329; /* Dark background for the dropdown menu */
+    -fx-border-color: #2b3139;
+    -fx-border-width: 1px;
+}
+.combo-box-popup .list-cell {
+    -fx-background-color: #1f2329;
+    -fx-text-fill: #FFFFFF;
+}
+.combo-box-popup .list-cell:hover,
+.combo-box-popup .list-cell:filled:selected {
+    -fx-background-color: #3b424d; /* Lighter dark gray for hover/selection */
+    -fx-text-fill: #FCD535; /* Trader Gold highlight */
+}
+
+.title-label { -fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #EAECEF; }
+.section-title { -fx-font-size: 15px; -fx-text-fill: #EAECEF; -fx-font-weight: bold; }
+.sub-text { -fx-font-size: 12px; -fx-text-fill: #EAECEF; }
+
+.action-button, .tab-button, .tab-button-active {
+    -fx-background-color: #2b3139;
+    -fx-text-fill: #EAECEF;
+    -fx-border-color: #2b3139;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-padding: 5px 15px;
+    -fx-cursor: hand;
+}
+.action-button:hover, .tab-button:hover { -fx-background-color: #3b424d; }
+.tab-button-active, .action-button-selected {
+    -fx-background-color: #FCD535; /* Trader Gold/Yellow highlight */
+    -fx-text-fill: #EAECEF;
+    -fx-font-weight: bold;
+}
+
+.dark-text-field, .dark-combo {
+    -fx-background-color: #1f2329;
+    -fx-text-fill: #EAECEF;
+    -fx-border-color: #2b3139;
+    -fx-border-radius: 3px;
+}
+.dark-scroll { -fx-background: #181a20;  -fx-background-color: transparent; }
+.tile-container { -fx-background-color: #181a20; }
+
+.dark-table { -fx-background-color: #181a20; -fx-border-color: #2b3139; -fx-border-radius: 4px; }
+.dark-table .column-header-background { -fx-background-color: #1f2329; }
+.dark-table .column-header { -fx-background-color: transparent; -fx-border-color: #2b3139; -fx-border-width: 0 1px 1px 0; }
+.dark-table .column-header .label { -fx-text-fill: #EAECEF; -fx-font-weight: bold; }
+
+.dark-table .table-cell {
+    -fx-font-family: "Consolas", "Courier New", monospace;
+    -fx-font-size: 13px;
+    -fx-text-fill: #EAECEF;
+}
+.dark-table .table-row-cell { -fx-background-color: #181a20; }
+.dark-table .table-row-cell:odd { -fx-background-color: #1f2329; }
+
+.buy-label { -fx-text-fill: #0ECB81; -fx-font-weight: bold; -fx-font-size: 13px; } /* Pro Trader Green */
+.sell-label { -fx-text-fill: #F6465D; -fx-font-weight: bold; -fx-font-size: 13px; } /* Pro Trader Red */
+
+.market-chart { -fx-background-color: transparent; }
+.market-chart .chart-plot-background { -fx-background-color: transparent; }
+.market-chart .chart-vertical-grid-lines, .market-chart .chart-horizontal-grid-lines { -fx-stroke: #2b3139; }
+.market-chart .default-color0.chart-series-line { -fx-stroke: #FCD535 !important; -fx-stroke-width: 2px !important; }
+.market-chart .default-color0.chart-line-symbol { -fx-background-color: #FCD535, #181a20; }
+
+.split-pane { -fx-background-color: #181a20; -fx-box-border: transparent; }
+.split-pane > .split-pane-divider { -fx-background-color: #181a20, #2b3139; -fx-background-insets: 0, 0 1 0 1; }

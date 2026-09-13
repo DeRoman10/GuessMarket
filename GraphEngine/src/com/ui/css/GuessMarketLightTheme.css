@@ -1,0 +1,68 @@
+/* Standard Light Mode - Clean, corporate, regular font */
+.root {
+    -fx-font-family: "Arial", sans-serif;
+}
+
+.main-background { -fx-background-color: #F0F2F5; }
+.header-panel, .side-panel, .center-panel { -fx-background-color: #FFFFFF; }
+.filter-bar {
+    -fx-background-color: #F8F9FA;
+    -fx-border-color: #DDDDDD;
+    -fx-border-width: 1px;
+    -fx-border-radius: 4px;
+    -fx-padding: 8px;
+}
+.dark-combo { -fx-text-fill: #000000; }
+.dark-combo .list-cell { -fx-text-fill: #000000; }
+.combo-box-popup .list-cell { -fx-text-fill: #000000; }
+
+.title-label { -fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #1A1A1A; }
+.section-title { -fx-font-size: 15px; -fx-text-fill: #333333; -fx-font-weight: bold; }
+.sub-text { -fx-font-size: 12px; -fx-text-fill: #666666; }
+
+.action-button, .tab-button {
+    -fx-background-color: #E0E0E0;
+    -fx-text-fill: #333333;
+    -fx-border-color: #CCCCCC;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-padding: 5px 15px;
+    -fx-cursor: hand;
+}
+.action-button:hover, .tab-button:hover { -fx-background-color: #D0D0D0; }
+.tab-button-active, .action-button-selected {
+    -fx-background-color: #2952A3;
+    -fx-text-fill: #FFFFFF;
+    -fx-border-color: #3B73E0;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-padding: 5px 15px;
+    -fx-cursor: hand;
+}
+
+.dark-text-field, .dark-combo {
+    -fx-background-color: #FFFFFF;
+    -fx-text-fill: #1A1A1A;
+    -fx-border-color: #CCCCCC;
+    -fx-border-radius: 3px;
+}
+.dark-scroll { -fx-background: #FFFFFF; -fx-background-color: transparent; }
+.tile-container { -fx-background-color: #FFFFFF; }
+
+.dark-table { -fx-background-color: #FFFFFF; -fx-border-color: #DDDDDD; -fx-border-radius: 4px; }
+.dark-table .column-header-background { -fx-background-color: #F8F9FA; }
+.dark-table .column-header { -fx-background-color: transparent; -fx-border-color: #DDDDDD; -fx-border-width: 0 1px 1px 0; }
+.dark-table .column-header .label { -fx-text-fill: #333333; -fx-font-weight: bold; }
+.dark-table .table-row-cell { -fx-background-color: #FFFFFF; -fx-text-fill: #1A1A1A; }
+
+.buy-label { -fx-text-fill: #2E7D32; -fx-font-weight: bold; -fx-font-size: 13px; }
+.sell-label { -fx-text-fill: #C62828; -fx-font-weight: bold; -fx-font-size: 13px; }
+
+.market-chart { -fx-background-color: transparent; }
+.market-chart .chart-plot-background { -fx-background-color: transparent; }
+.market-chart .chart-vertical-grid-lines, .market-chart .chart-horizontal-grid-lines { -fx-stroke: #E0E0E0; }
+.market-chart .default-color0.chart-series-line { -fx-stroke: #2952A3 !important; -fx-stroke-width: 3px !important; }
+.market-chart .default-color0.chart-line-symbol { -fx-background-color: #2952A3, #FFFFFF; }
+
+.split-pane { -fx-background-color: #FFFFFF; -fx-box-border: transparent; }
+.split-pane > .split-pane-divider { -fx-background-color: #FFFFFF, #DDDDDD; -fx-background-insets: 0, 0 1 0 1; }

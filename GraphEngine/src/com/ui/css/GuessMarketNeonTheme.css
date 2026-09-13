@@ -1,0 +1,108 @@
+/* Cyberpunk / Retrowave / Neon Theme */
+.root {
+    -fx-font-family: "Courier New", Consolas, monospace; /* Terminal/Hacker font */
+}
+
+/* Deep midnight space background */
+.main-background { -fx-background-color: #020205; }
+.header-panel, .side-panel, .center-panel { -fx-background-color: #090B1A; }
+
+.filter-bar, .participation-panel {
+    -fx-background-color: #0E132E;
+    -fx-border-color: #00DDDD; /* Neon Cyan border */
+    -fx-border-width: 1px;
+    -fx-border-radius: 4px;
+    -fx-padding: 8px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,255,255,0.2), 5, 0, 0, 0); /* Subtle cyan glow */
+}
+
+/* Bright Cyan text with glow */
+.title-label {
+    -fx-font-size: 26px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #00DDDD;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,255,255,0.6), 8, 0, 0, 0);
+}
+.section-title { -fx-font-size: 16px; -fx-text-fill: #AEE5DD; -fx-font-weight: bold; }
+.sub-text { -fx-font-size: 12px; -fx-text-fill: #5D7AAB; }
+
+/* Buttons with glowing hover effects */
+.action-button, .tab-button {
+    -fx-background-color: #050A1F;
+    -fx-text-fill: #00DDDD;
+    -fx-border-color: #00DDDD;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-padding: 5px 15px;
+    -fx-cursor: hand;
+}
+.action-button:hover, .tab-button:hover {
+    -fx-background-color: #00DDDD;
+    -fx-text-fill: #020205;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,255,255,0.8), 10, 0, 0, 0);
+}
+.tab-button-active, .action-button-selected {
+    -fx-background-color: #DD00DD; /* Hot Magenta */
+    -fx-text-fill: #DDDDDD;
+    -fx-border-color: #DD00DD;
+    -fx-effect: dropshadow(three-pass-box, rgba(255,0,255,0.8), 10, 0, 0, 0);
+    -fx-font-weight: bold;
+}
+
+.dark-text-field, .dark-combo {
+    -fx-background-color: #020205;
+    -fx-text-fill: #00DDDD;
+    -fx-border-color: #00DDDD;
+    -fx-border-radius: 3px;
+}
+.dark-scroll { -fx-background: #090B1A; -fx-background-color: transparent; }
+.tile-container { -fx-background-color: #090B1A; }
+
+/* Tables */
+.dark-table { -fx-background-color: #020205; -fx-border-color: #00DDDD; -fx-border-radius: 4px; }
+.dark-table .column-header-background { -fx-background-color: #0E132E; }
+.dark-table .column-header { -fx-background-color: transparent; -fx-border-color: #00DDDD; -fx-border-width: 0 1px 1px 0; }
+.dark-table .column-header .label { -fx-text-fill: #00DDDD; -fx-font-weight: bold; }
+.dark-table .table-row-cell { -fx-background-color: #020205; -fx-text-fill: #AEE5DD; }
+.dark-table .table-row-cell:odd { -fx-background-color: #050A1F; }
+.dark-table .table-row-cell:selected { -fx-background-color: #DD00DD; -fx-text-fill: #DDDDDD; }
+
+/* Hot Pink and Electric Cyan for Buy/Sell */
+.buy-label { -fx-text-fill: #00DDDD; -fx-font-weight: bold; -fx-font-size: 14px; -fx-effect: dropshadow(two-pass-box, rgba(0,255,255,0.5), 3, 0, 0, 0); }
+.sell-label { -fx-text-fill: #DD00DD; -fx-font-weight: bold; -fx-font-size: 14px; -fx-effect: dropshadow(two-pass-box, rgba(255,0,255,0.5), 3, 0, 0, 0); }
+
+/* Glowing Chart */
+.market-chart { -fx-background-color: transparent; }
+.market-chart .chart-plot-background { -fx-background-color: transparent; }
+.market-chart .chart-vertical-grid-lines, .market-chart .chart-horizontal-grid-lines { -fx-stroke: #0E132E; }
+.market-chart .default-color0.chart-series-line {
+    -fx-stroke: #00DDDD !important;
+    -fx-stroke-width: 3px !important;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,255,255,0.8), 12, 0, 0, 0); /* Heavy Neon Glow */
+}
+.market-chart .default-color0.chart-line-symbol {
+    -fx-background-color: #DD00DD, #020205;
+    -fx-stroke: #DD00DD;
+    -fx-effect: dropshadow(three-pass-box, rgba(255,0,255,0.8), 8, 0, 0, 0);
+}
+
+.dark-combo { -fx-text-fill: #00DDDD; }
+.dark-combo .list-cell { -fx-text-fill: #00DDDD; }
+
+.combo-box-popup .list-view {
+    -fx-background-color: #020205; /* Midnight space background */
+    -fx-border-color: #00DDDD;
+    -fx-border-width: 1px;
+}
+.combo-box-popup .list-cell {
+    -fx-background-color: #020205;
+    -fx-text-fill: #00DDDD;
+}
+.combo-box-popup .list-cell:hover,
+.combo-box-popup .list-cell:filled:selected {
+    -fx-background-color: #050A1F;
+    -fx-text-fill: #DD00DD; /* Hot Magenta on hover */
+}
+
+.split-pane { -fx-background-color: #090B1A; -fx-box-border: transparent; }
+.split-pane > .split-pane-divider { -fx-background-color: #090B1A, #00DDDD; -fx-background-insets: 0, 0 1 0 1; }

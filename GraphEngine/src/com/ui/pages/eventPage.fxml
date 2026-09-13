@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.chart.LineChart?>
+<?import javafx.scene.chart.NumberAxis?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<ScrollPane fitToWidth="true" fitToHeight="true"
+            style="-fx-background: transparent; -fx-background-color: transparent;"
+            xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.ui.controllers.EventController">
+   <content>
+      <BorderPane styleClass="main-background" prefHeight="700.0" prefWidth="1050.0">
+
+
+         <left>
+            <VBox fx:id="eventsListPanel" spacing="10.0" minWidth="260.0" prefWidth="300.0" maxWidth="320.0" styleClass="side-panel">
+
+               <!-- FIX: Stacked vertically inside a VBox so text is never truncated -->
+               <VBox spacing="10.0" styleClass="filter-bar">
+                  <Label text="Filters:" styleClass="sub-text"/>
+                  <ComboBox fx:id="methodFilterCombo" promptText="Method" maxWidth="Infinity" styleClass="dark-combo"/>
+                  <ComboBox fx:id="statusFilterCombo" promptText="Status" maxWidth="Infinity" styleClass="dark-combo"/>
+                  <ComboBox fx:id="commissionFilterCombo" promptText="Commission" maxWidth="Infinity" styleClass="dark-combo"/>
+               </VBox>
+
+               <ScrollPane fitToWidth="true" styleClass="dark-scroll" VBox.vgrow="ALWAYS">
+                  <TilePane fx:id="eventsTileContainer" hgap="10" vgap="10" prefColumns="1" styleClass="tile-container"/>
+               </ScrollPane>
+               <padding><Insets top="10" right="10" bottom="10" left="10"/></padding>
+            </VBox>
+         </left>
+
+         <!-- CENTER PANEL (Tables & Chart) -->
+         <center>
+            <VBox spacing="15.0" styleClass="center-panel">
+               <Label text="Event Details &amp; Market Trends" styleClass="section-title"/>
+
+               <HBox fx:id="orderBookTablesBox" spacing="15.0" VBox.vgrow="NEVER" prefHeight="200.0">
+                  <VBox HBox.hgrow="ALWAYS">
+                     <Label text="Buy Orders (Bids)" textFill="#4CAF50" style="-fx-font-weight: bold;"/>
+                     <TableView fx:id="buyOrdersTable" styleClass="dark-table" VBox.vgrow="ALWAYS">
+                        <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY"/></columnResizePolicy>
+                        <columns>
+                           <TableColumn fx:id="buyOptionCol" text="Option"/>
+                           <TableColumn fx:id="buyPriceCol" text="Price ($)"/>
+                           <TableColumn fx:id="buyAmountCol" text="Amount"/>
+                        </columns>
+                     </TableView>
+                  </VBox>
+                  <VBox HBox.hgrow="ALWAYS">
+                     <Label text="Sell Orders (Asks)" textFill="#F44336" style="-fx-font-weight: bold;"/>
+                     <TableView fx:id="sellOrdersTable" styleClass="dark-table" VBox.vgrow="ALWAYS">
+                        <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY"/></columnResizePolicy>
+                        <columns>
+                           <TableColumn fx:id="sellOptionCol" text="Option"/>
+                           <TableColumn fx:id="sellPriceCol" text="Price ($)"/>
+                           <TableColumn fx:id="sellAmountCol" text="Amount"/>
+                        </columns>
+                     </TableView>
+                  </VBox>
+               </HBox>
+
+               <LineChart fx:id="marketChart" styleClass="market-chart" legendVisible="false" VBox.vgrow="NEVER" prefHeight="180.0">            <xAxis>
+                  <NumberAxis fx:id="dealXAxis" label="Number of Deals" side="BOTTOM" tickLabelFill="#888888" autoRanging="true" lowerBound="0.0"/>
+               </xAxis>
+                  <yAxis>
+                     <NumberAxis fx:id="priceYAxis" label="Price" side="LEFT" autoRanging="false" lowerBound="0.0" upperBound="1.0" tickUnit="0.1" tickLabelFill="#888888"/>
+                  </yAxis>
+               </LineChart>
+
+               <!-- options info -->
+               <ScrollPane fitToWidth="true" styleClass="dark-scroll" style="-fx-background-color: transparent; -fx-background: transparent;" vbarPolicy="NEVER">
+                  <HBox fx:id="optionsSummaryContainer" spacing="15.0" alignment="CENTER" styleClass="side-panel" style="-fx-padding: 10px; -fx-border-color: transparent;"/>
+               </ScrollPane>
+
+
+               <!-- History Table -->
+               <VBox spacing="5.0" VBox.vgrow="NEVER" prefHeight="150.0">
+                  <Label text="Trading History (Task 1)" styleClass="sub-text"/>
+                  <TableView fx:id="historyTable" styleClass="dark-table" VBox.vgrow="ALWAYS" prefHeight="250.0">               <columnResizePolicy><TableView fx:constant="CONSTRAINED_RESIZE_POLICY"/></columnResizePolicy>
+                     <columns>
+                        <TableColumn fx:id="historyOptionCol" text="Option"/>
+                        <TableColumn fx:id="historyAmountCol" text="Amount"/>
+                        <TableColumn fx:id="historyPriceCol" text="Price Paid ($)"/>
+                     </columns>
+                  </TableView>
+               </VBox>
+
+               <padding><Insets top="10" right="20" bottom="20" left="10"/></padding>
+            </VBox>
+         </center>
+      </BorderPane>
+   </content>
+</ScrollPane>

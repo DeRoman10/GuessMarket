@@ -2,10 +2,13 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/ConsoleUI/ConsoleUI.iml" filepath="$PROJECT_DIR$/ConsoleUI/ConsoleUI.iml" />
+      <module fileurl="file://$PROJECT_DIR$/Core/Core.iml" filepath="$PROJECT_DIR$/Core/Core.iml" />
       <module fileurl="file://$PROJECT_DIR$/Data/Data.iml" filepath="$PROJECT_DIR$/Data/Data.iml" />
-      <module fileurl="file://$PROJECT_DIR$/Engine/Engine.iml" filepath="$PROJECT_DIR$/Engine/Engine.iml" />
+      <module fileurl="file://$PROJECT_DIR$/FileHandler/FileHandler.iml" filepath="$PROJECT_DIR$/FileHandler/FileHandler.iml" />
+      <module fileurl="file://$PROJECT_DIR$/GraphEngine/GraphEngine.iml" filepath="$PROJECT_DIR$/GraphEngine/GraphEngine.iml" />
       <module fileurl="file://$PROJECT_DIR$/GuessMarket.iml" filepath="$PROJECT_DIR$/GuessMarket.iml" />
+      <module fileurl="file://$PROJECT_DIR$/TradingEngine/TradingEngine.iml" filepath="$PROJECT_DIR$/TradingEngine/TradingEngine.iml" />
+      <module fileurl="file://$PROJECT_DIR$/UserEngine/UserEngine.iml" filepath="$PROJECT_DIR$/UserEngine/UserEngine.iml" />
     </modules>
   </component>
 </project>
