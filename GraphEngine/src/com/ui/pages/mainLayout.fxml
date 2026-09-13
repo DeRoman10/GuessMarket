@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox spacing="10.0" styleClass="header-panel" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.ui.controllers.MainController">
+
+    <Label text="Guess Market" styleClass="title-label"/>
+
+    <HBox spacing="15.0" alignment="CENTER_LEFT">
+        <Button text="Load File" styleClass="action-button" onAction="#handleGlobalLoadFile"/>
+        <TextField fx:id="filePathField" promptText="Currently Loaded File path..." HBox.hgrow="ALWAYS" styleClass="dark-text-field" editable="false"/>
+    </HBox>
+
+    <!-- Tabs & Theme Switcher -->
+    <HBox spacing="10.0" alignment="CENTER_LEFT">
+        <Button text="Events" styleClass="tab-button" onAction="#navigateToEvents"/>
+        <Button text="Users" styleClass="tab-button" onAction="#navigateToUsers"/>
+
+        <Region HBox.hgrow="ALWAYS" />
+
+        <Label text="Skin:" styleClass="sub-text"/>
+        <ComboBox fx:id="skinCombo" styleClass="dark-combo"/>
+        <CheckBox fx:id="animationToggle" text="Activate Start App Animation" styleClass="sub-text" />
+    </HBox>
+
+    <padding><Insets top="15" right="20" bottom="10" left="20"/></padding>
+</VBox>

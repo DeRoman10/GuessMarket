@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<VBox styleClass="main-background" spacing="15.0" prefWidth="500.0" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.ui.controllers.EventCreationController">
+    <padding><Insets top="20" right="20" bottom="20" left="20"/></padding>
+    <Label text="Create New Event" styleClass="title-label"/>
+
+    <TextField fx:id="eventNameField" promptText="Event Name" styleClass="dark-text-field"/>
+    <TextField fx:id="descriptionField" promptText="Description" styleClass="dark-text-field"/>
+
+    <HBox spacing="10.0">
+        <TextField fx:id="commissionRateField" promptText="Commission Rate (%)" styleClass="dark-text-field" HBox.hgrow="ALWAYS"/>
+        <ComboBox fx:id="commissionTypeCombo" promptText="Commission Type" styleClass="dark-combo" HBox.hgrow="ALWAYS" maxWidth="Infinity"/>
+    </HBox>
+
+    <HBox spacing="10.0">
+        <TextField fx:id="option1Field" promptText="Option 1 Name" styleClass="dark-text-field" HBox.hgrow="ALWAYS"/>
+        <TextField fx:id="option2Field" promptText="Option 2 Name" styleClass="dark-text-field" HBox.hgrow="ALWAYS"/>
+    </HBox>
+
+    <ComboBox fx:id="methodTypeCombo" promptText="Market Method" styleClass="dark-combo" maxWidth="Infinity"/>
+
+    <VBox fx:id="lmsrFieldsBox" spacing="10.0" managed="false" visible="false">
+        <TextField fx:id="liquidityParamField" promptText="Liquidity Parameter (b)" styleClass="dark-text-field"/>
+    </VBox>
+
+    <VBox fx:id="obFieldsBox" spacing="10.0" managed="false" visible="false">
+        <TextField fx:id="initialInvestmentField" promptText="Initial Investment ($)" styleClass="dark-text-field"/>
+        <TextField fx:id="baseValueField" promptText="Base Value (d)" styleClass="dark-text-field"/>
+        <CheckBox fx:id="allowMintCheckBox" text="Allow Minting" textFill="WHITE"/>
+    </VBox>
+
+    <HBox spacing="15.0" alignment="CENTER_RIGHT">
+        <Button text="Cancel" styleClass="danger-button" onAction="#handleGoBack"/>
+        <Button text="Create Event" styleClass="action-button" onAction="#handleApplyEvent"/>
+    </HBox>
+</VBox>
