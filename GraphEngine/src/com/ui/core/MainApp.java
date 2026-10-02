@@ -1,6 +1,5 @@
 package com.ui.core;
 
-import com.maneger.SystemManager;
 import com.ui.controllers.*;
 import javafx.animation.*;
 import javafx.application.Application;
@@ -17,38 +16,48 @@ import java.util.Scanner;
 public class MainApp extends Application {
 
     private ViewManager viewManager;
-    private SystemManager systemManager;
 
     @Override
     public void start(Stage primaryStage) throws Exception {
-        // Initialize the core managers
         viewManager = new ViewManager();
-        systemManager = new SystemManager();
 
         FXMLLoader mainLoader = new FXMLLoader(getClass().getResource("/com/ui/pages/mainLayout.fxml"));
         Parent topBarNode = mainLoader.load();
         MainController mainController = mainLoader.getController();
-        mainController.setManagers(systemManager, viewManager);
+        mainController.setManagers(viewManager);
 
         FXMLLoader eventLoader = new FXMLLoader(getClass().getResource("/com/ui/pages/eventPage.fxml"));
         Parent marketViewNode = eventLoader.load();
         EventController eventController = eventLoader.getController();
-        eventController.setManagers(systemManager, viewManager);
 
         FXMLLoader userLoader = new FXMLLoader(getClass().getResource("/com/ui/pages/userPage.fxml"));
         Parent userViewNode = userLoader.load();
         UserController userController = userLoader.getController();
-        userController.setManagers(systemManager, viewManager);
+        userController.setManagers(viewManager);
+
+        FXMLLoader loginLoader = new FXMLLoader(getClass().getResource("/com/ui/pages/loginPage.fxml"));
+        Parent loginViewNode = loginLoader.load();
+        LoginController loginController = loginLoader.getController();
+        loginController.setManagers(viewManager);
 
         viewManager.addScreen("MARKET_DASHBOARD", marketViewNode, eventController);
         viewManager.addScreen("USER_DASHBOARD", userViewNode, userController);
+        viewManager.addScreen("LOGIN_DASHBOARD", loginViewNode, loginController);
 
         BorderPane borderPane = (BorderPane) viewManager.getMainScene().getRoot();
         borderPane.setTop(topBarNode);
 
-        viewManager.navigateTo("USER_DASHBOARD");
+        viewManager.navigateTo("LOGIN_DASHBOARD");
 
-        // Read animation state from the text file instead of command line arguments
+        StackPane rootContainer = new StackPane();
+        viewManager.getMainScene().setRoot(rootContainer);
+
+        primaryStage.setTitle("Guess Market Trading Platform");
+        primaryStage.setScene(viewManager.getMainScene());
+        primaryStage.setMinWidth(1050);
+        primaryStage.setMinHeight(700);
+        primaryStage.show();
+
         boolean enableAnimations = false;
         File animFile = new File("animation_state.txt");
         if (animFile.exists()) {
@@ -61,10 +70,7 @@ public class MainApp extends Application {
             }
         }
 
-        // Only swap the root structure to StackPane if animations are enabled
         if (enableAnimations) {
-            StackPane rootContainer = new StackPane();
-            viewManager.getMainScene().setRoot(rootContainer);
             borderPane.setVisible(false);
 
             javafx.scene.shape.Circle loadingRing = new javafx.scene.shape.Circle(40);
@@ -90,14 +96,9 @@ public class MainApp extends Application {
             });
 
             rotate.play();
+        } else {
+            rootContainer.getChildren().add(borderPane);
         }
-
-        // Reveal the window at the very end to prevent a blank freeze
-        primaryStage.setTitle("Guess Market Trading Platform");
-        primaryStage.setScene(viewManager.getMainScene());
-        primaryStage.setMinWidth(1050);
-        primaryStage.setMinHeight(700);
-        primaryStage.show();
     }
 
     private void playStartupAnimations(Parent rootNode) {
@@ -120,5 +121,4 @@ public class MainApp extends Application {
         ParallelTransition parallelTransition = new ParallelTransition(fade, translate, scale);
         parallelTransition.play();
     }
-
 }

@@ -7,6 +7,7 @@
       <module fileurl="file://$PROJECT_DIR$/FileHandler/FileHandler.iml" filepath="$PROJECT_DIR$/FileHandler/FileHandler.iml" />
       <module fileurl="file://$PROJECT_DIR$/GraphEngine/GraphEngine.iml" filepath="$PROJECT_DIR$/GraphEngine/GraphEngine.iml" />
       <module fileurl="file://$PROJECT_DIR$/GuessMarket.iml" filepath="$PROJECT_DIR$/GuessMarket.iml" />
+      <module fileurl="file://$PROJECT_DIR$/GuessMarketServer/GuessMarketServer.iml" filepath="$PROJECT_DIR$/GuessMarketServer/GuessMarketServer.iml" />
       <module fileurl="file://$PROJECT_DIR$/TradingEngine/TradingEngine.iml" filepath="$PROJECT_DIR$/TradingEngine/TradingEngine.iml" />
       <module fileurl="file://$PROJECT_DIR$/UserEngine/UserEngine.iml" filepath="$PROJECT_DIR$/UserEngine/UserEngine.iml" />
     </modules>

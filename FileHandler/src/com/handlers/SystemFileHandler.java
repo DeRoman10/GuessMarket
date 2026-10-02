@@ -6,20 +6,18 @@ import jakarta.xml.bind.Marshaller;
 import jakarta.xml.bind.Unmarshaller;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamReader;
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
+import java.io.*;
 
 public abstract class SystemFileHandler {
 
-    public static Market loadXmlData(String filePath) throws Exception {
+    public static Market loadXmlData(InputStream inputStream) throws Exception {
         JAXBContext context = JAXBContext.newInstance(Market.class);
         Unmarshaller unmarshaller = context.createUnmarshaller();
+
         XMLInputFactory xif = XMLInputFactory.newInstance();
         xif.setProperty(XMLInputFactory.IS_NAMESPACE_AWARE, false);
 
-        try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(filePath))) {
+        try (BufferedInputStream bis = new BufferedInputStream(inputStream)) {
             XMLStreamReader xsr = xif.createXMLStreamReader(bis);
             return (Market) unmarshaller.unmarshal(xsr);
         }

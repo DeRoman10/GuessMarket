@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="UserEngine">
+    <output-path>$PROJECT_DIR$/out/artifacts/UserEngine</output-path>
+    <root id="archive" name="UserEngine.jar">
+      <element id="module-output" name="UserEngine" />
+    </root>
+  </artifact>
+</component>

@@ -1,0 +1,7 @@
+Manifest-Version: 1.0
+Main-Class: com.ui.Launcher
+Class-Path: Core.jar Data.jar FileHandler.jar TradingEngine.jar UserEngi
+ ne.jar lib/javafx.base.jar lib/javafx.controls.jar lib/javafx.fxml.jar 
+ lib/javafx.graphics.jar lib/jakarta.xml.bind-api.jar lib/jaxb-impl.jar 
+ lib/jaxb-core.jar
+

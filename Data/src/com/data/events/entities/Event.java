@@ -163,7 +163,6 @@ public class Event implements Serializable {
     public void setMmAccount(User mmUser) {
         this.mmUser = mmUser;
     }
-
     public double getContractBalance() { return contractBalance; }
 
     public void depositToContract(double amount) {

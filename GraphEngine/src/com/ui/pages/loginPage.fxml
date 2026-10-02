@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<StackPane styleClass="main-background" prefHeight="700.0" prefWidth="1050.0"
+           stylesheets="@../css/GuessMarketTradingTheme.css"
+           xmlns="http://javafx.com/javafx/21"
+           xmlns:fx="http://javafx.com/fxml/1"
+           fx:controller="com.ui.controllers.LoginController">
+
+    <VBox alignment="CENTER" spacing="20.0" maxWidth="400.0" maxHeight="300.0"
+          styleClass="side-panel" style="-fx-padding: 40px; -fx-border-color: #444444; -fx-border-radius: 10px; -fx-border-width: 1px;">
+
+        <Label text="Guess Market" styleClass="title-label" style="-fx-font-size: 28px;"/>
+        <Label text="Enter a unique username to connect to the server." styleClass="sub-text" wrapText="true" textAlignment="CENTER"/>
+
+        <TextField fx:id="usernameField" promptText="Username..." styleClass="dark-text-field" prefHeight="40.0"/>
+
+        <Button text="Connect" styleClass="action-button" maxWidth="Infinity" prefHeight="40.0" onAction="#handleLogin"/>
+    </VBox>
+
+</StackPane>

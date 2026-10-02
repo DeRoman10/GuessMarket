@@ -1,8 +1,17 @@
 package com.ui.core;
 
+import javafx.animation.Animation;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.layout.BorderPane;
+import javafx.util.Duration;
+import okhttp3.Call;
+import okhttp3.Response;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -38,6 +47,12 @@ public class ViewManager {
         }
     }
 
+    public void changeTheme(String cssFileName) {
+        mainScene.getStylesheets().clear();
+        String cssPath = getClass().getResource("/com/ui/css/" + cssFileName).toExternalForm();
+        mainScene.getStylesheets().add(cssPath);
+    }
+
     public Object getController(String screenName) {
         return controllers.get(screenName);
     }
@@ -50,9 +65,27 @@ public class ViewManager {
         }
     }
 
-    public void changeTheme(String cssFileName) {
-        mainScene.getStylesheets().clear();
-        String cssPath = getClass().getResource("/com/ui/css/" + cssFileName).toExternalForm();
-        mainScene.getStylesheets().add(cssPath);
+    public boolean handleUnauthorized(int statusCode) {
+        if (statusCode == 401) {
+            javafx.application.Platform.runLater(() -> {
+                javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.WARNING);
+                alert.setTitle("Session Expired");
+                alert.setHeaderText(null);
+                alert.setContentText("Please log in again.");
+                alert.showAndWait();
+
+                navigateTo("LOGIN_DASHBOARD");
+            });
+            return true; // Signals to the caller that the request was intercepted
+        }
+        return false;
+    }
+
+    private void startAutoRefresh() {
+        Timeline pullTimeline = new Timeline(new KeyFrame(Duration.seconds(1.5), event -> {
+            refreshAllScreens();
+        }));
+        pullTimeline.setCycleCount(Animation.INDEFINITE);
+        pullTimeline.play();
     }
 }

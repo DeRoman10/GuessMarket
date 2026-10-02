@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="GraphEngine">
+    <output-path>$PROJECT_DIR$/out/artifacts/GraphEngine</output-path>
+    <root id="archive" name="GraphEngine.jar">
+      <element id="module-output" name="GraphEngine" />
+    </root>
+  </artifact>
+</component>

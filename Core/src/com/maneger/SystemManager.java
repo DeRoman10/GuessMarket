@@ -16,15 +16,14 @@ import com.engine.ITradingEngine;
 import com.engine.LmsrEngine;
 import com.engine.OrderBookEngine;
 import com.engine.UserManager;
-import com.handlers.SystemFileHandler;
-import com.handlers.XmlFileControl;
 import com.service.EngineService;
 
 import java.util.*;
 
 public class SystemManager {
+    // בתרגיל 3 המפתח הוא שם האירוע (name) כי ה-ID בוטל
     private Map<String, Event> events;
-    private Map<String, ITradingEngine> tradingEngines; // the same key of events
+    private Map<String, ITradingEngine> tradingEngines;
     private EngineService engineService;
     private UserManager userManager;
 
@@ -35,22 +34,71 @@ public class SystemManager {
         this.userManager = new UserManager();
     }
 
-    public void loadXmlData(String xmlPath) throws Exception {
-        Market loadedMarket = SystemFileHandler.loadXmlData(xmlPath);
-        XmlFileControl.validateMarketData(loadedMarket);
-        loadEventsAndEngines(loadedMarket.getEvents());
-        userManager.loadUsers(loadedMarket.getUsers());
-        linkMarketMakersToEvents();
-        for (Event event : events.values()) {
+
+
+    public void addUser(User user) {
+        if (userManager.getAllUsers() == null || userManager.getAllUsers().stream().noneMatch(u -> u.getName().equalsIgnoreCase(user.getName()))) {
+            List<User> currentUsers = new ArrayList<>(userManager.getAllUsers());
+            currentUsers.add(user);
+            userManager.loadUsers(currentUsers);
+        }
+    }
+
+    public List<User> getUsers() {
+        if (userManager == null) {
+            return new ArrayList<>();
+        }
+        return new ArrayList<>(userManager.getAllUsers());
+    }
+
+
+    public synchronized void loadMarketData(Market loadedMarket, User uploader) throws Exception {
+
+        for (Event event : loadedMarket.getEvents()) {
+            if (events.containsKey(event.getName())) {
+                throw new Exception("An event named '" + event.getName() + "' already exists in the system.");
+            }
+        }
+
+        for (Event event : loadedMarket.getEvents()) {
+
+            event.setMmAccount(uploader);
+            uploader.addManagedEvent(event.getName());
+
+            events.put(event.getName(), event);
+
+            if (event.isLmsr()) {
+                int b = event.getMethod().getLmsr().getB();
+                ITradingEngine engine = new LmsrEngine(b);
+                tradingEngines.put(event.getName(), engine);
+            }
+
+            if (event.isOrderBook()) {
+                int d = event.getMethod().getOrderBook().getD();
+                boolean allowMint = event.getMethod().getOrderBook().isAllowMint();
+                ITradingEngine engine = new com.engine.OrderBookEngine(d, allowMint);
+                tradingEngines.put(event.getName(), engine);
+            }
+
             fundLmsrSubsidy(event);
             fundObInitialInvestment(event);
+
+            for (User user : userManager.getAllUsers()) {
+                if (user.getManagedEvents() != null) {
+                    for (String eventId : user.getManagedEvents()) {
+                        Event ev = events.get(eventId);
+                        if (ev != null) {
+                            ev.setMmAccount(user);
+                        }
+                    }
+                }
+            }
         }
     }
 
     private void fundLmsrSubsidy(Event event) {
         if (!event.isLmsr()) return;
-
-        ITradingEngine engine = tradingEngines.get(event.getId());
+        ITradingEngine engine = tradingEngines.get(event.getName());
         User mm = event.getMmAccount();
         if (!(engine instanceof LmsrEngine lmsrEngine) || mm == null) return;
 
@@ -61,7 +109,6 @@ public class SystemManager {
 
     private void fundObInitialInvestment(Event event) {
         if (!event.isOrderBook()) return;
-
         User mm = event.getMmAccount();
         if (mm == null) return;
 
@@ -74,13 +121,12 @@ public class SystemManager {
         double pairsToMint = initialInvestment / (double) baseValue;
 
         com.data.users.entities.Portfolio mmPortfolio =
-                mm.getPortfolios().computeIfAbsent(event.getId(), k -> new com.data.users.entities.Portfolio());
+                mm.getPortfolios().computeIfAbsent(event.getName(), k -> new com.data.users.entities.Portfolio());
         for (Option option : event.getOptions()) {
             mmPortfolio.getHoldings().merge(option.getName(), pairsToMint, Double::sum);
             option.addPurchasedShares(pairsToMint);
         }
     }
-
 
     public synchronized Event createLmsrEvent(User creator, String name, String description,
                                               int commissionRate, CommissionType commissionType,
@@ -100,13 +146,12 @@ public class SystemManager {
         List<Option> options = List.of(new Option(option1Name.trim()), new Option(option2Name.trim()));
         GMMethodXMLHelper method = new GMMethodXMLHelper(new GMlmsrXMLhelper(liquidityParam));
 
-        String id = generateNextEventId();
-        Event event = new Event(id, name.trim(), description.trim(), commissionRate,
+        Event event = new Event(name.trim(), name.trim(), description.trim(), commissionRate,
                 commissionType, EventStatus.ACTIVE, options, creator, method);
 
-        events.put(id, event);
-        tradingEngines.put(id, new LmsrEngine(liquidityParam));
-        creator.addManagedEvent(id);
+        events.put(name.trim(), event);
+        tradingEngines.put(name.trim(), new LmsrEngine(liquidityParam));
+        creator.addManagedEvent(name.trim());
         fundLmsrSubsidy(event);
         return event;
     }
@@ -131,97 +176,27 @@ public class SystemManager {
         List<Option> options = List.of(new Option(option1Name.trim()), new Option(option2Name.trim()));
         GMMethodXMLHelper method = new GMMethodXMLHelper(new GMOrderBookXMLHelper(allowMint, initialInvestment, baseValue));
 
-        String id = generateNextEventId();
-        Event event = new Event(id, name.trim(), description.trim(), commissionRate,
+        Event event = new Event(name.trim(), name.trim(), description.trim(), commissionRate,
                 commissionType, EventStatus.ACTIVE, options, creator, method);
 
-        events.put(id, event);
-        tradingEngines.put(id, new OrderBookEngine(baseValue, allowMint));
-        creator.addManagedEvent(id);
+        events.put(name.trim(), event);
+        tradingEngines.put(name.trim(), new OrderBookEngine(baseValue, allowMint));
+        creator.addManagedEvent(name.trim());
         fundObInitialInvestment(event);
         return event;
     }
 
     private void validateNewEventInputs(User creator, String name, String description,
                                         int commissionRate, String option1Name, String option2Name) throws Exception {
-        if (creator == null) {
-            throw new Exception("Select a user before creating an event.");
-        }
-        if (name == null || name.isBlank()) {
-            throw new Exception("Event name is required.");
-        }
-        for (Event existing : events.values()) {
-            if (existing.getName().equalsIgnoreCase(name.trim())) {
-                throw new Exception(String.format("An event named '%s' already exists.", name.trim()));
-            }
-        }
-        if (description == null || description.isBlank()) {
-            throw new Exception("Event description is required.");
-        }
-        if (commissionRate < 0 || commissionRate > 90) {
-            throw new Exception("Commission must be a whole number between 0 and 90.");
-        }
-        if (option1Name == null || option1Name.isBlank() || option2Name == null || option2Name.isBlank()) {
-            throw new Exception("Both option names are required.");
-        }
-        if (option1Name.trim().equalsIgnoreCase(option2Name.trim())) {
-            throw new Exception("The two option names must be different.");
-        }
+        if (creator == null) throw new Exception("Select a user before creating an event.");
+        if (name == null || name.isBlank()) throw new Exception("Event name is required.");
+        if (events.containsKey(name.trim())) throw new Exception(String.format("An event named '%s' already exists.", name.trim()));
+        if (description == null || description.isBlank()) throw new Exception("Event description is required.");
+        if (commissionRate < 0 || commissionRate > 90) throw new Exception("Commission must be a whole number between 0 and 90.");
+        if (option1Name == null || option1Name.isBlank() || option2Name == null || option2Name.isBlank()) throw new Exception("Both option names are required.");
+        if (option1Name.trim().equalsIgnoreCase(option2Name.trim())) throw new Exception("The two option names must be different.");
     }
 
-    private String generateNextEventId() {
-        int maxId = 0;
-        for (String id : events.keySet()) {
-            try {
-                maxId = Math.max(maxId, Integer.parseInt(id));
-            } catch (NumberFormatException ignored) {
-                // non-numeric IDs (e.g. from hand-written test XML) just don't count toward the sequence
-            }
-        }
-        return String.valueOf(maxId + 1);
-    }
-
-    private void linkMarketMakersToEvents() {
-        for (User user : userManager.getAllUsers()) {
-            if (user.getManagedEvents() != null) {
-                for (String eventId : user.getManagedEvents()) {
-                    Event ev = events.get(eventId);
-                    if (ev != null) {
-                        ev.setMmAccount(user);
-                    }
-                }
-            }
-        }
-    }
-    private void loadEventsAndEngines(List<Event> marketEvents) {
-        events.clear();
-        tradingEngines.clear();
-
-        if (marketEvents != null) {
-            for (Event event : marketEvents) {
-                events.put(event.getId(), event);
-
-                if (event.isLmsr()) {
-                    int b = event.getMethod().getLmsr().getB();
-                    ITradingEngine engine = new LmsrEngine(b);
-                    tradingEngines.put(event.getId(), engine);
-                }
-
-                if (event.isOrderBook()) {
-                    int d = event.getMethod().getOrderBook().getD();
-                    boolean allowMint = event.getMethod().getOrderBook().isAllowMint();
-                    ITradingEngine engine = new com.engine.OrderBookEngine(d, allowMint);
-                    tradingEngines.put(event.getId(), engine);
-                }
-            }
-        }
-    }
-
-    public void saveXmlData(String xmlPath) throws Exception {
-        Market market = new Market();
-        market.setEvents(new ArrayList<>(events.values()));
-        SystemFileHandler.saveXmlData(market, xmlPath);
-    }
 
     public List<Event> getEvents() {
         return new ArrayList<>(events.values());
@@ -237,39 +212,14 @@ public class SystemManager {
         return activeEvents;
     }
 
-    public String getEventBasicInfo(String eventId) throws Exception {
-        Event event = getEvent(eventId);
-        StringBuilder sb = new StringBuilder();
-
-        sb.append(String.format("Event ID: %s%n", event.getId()));
-        sb.append(String.format("Name: %s%n", event.getName()));
-        sb.append(String.format("Description: %s%n", event.getDescription()));
-        sb.append(String.format("Status: %s%n", event.getStatus().name()));
-        sb.append(String.format("Commission: %d%% (%s)%n", event.getCommissionRate(), event.getCommissionType().name()));
-
-        if (event.getStatus() == EventStatus.CLOSED) {
-            Option winner = event.getWinningOption();
-            sb.append(String.format("Winning Option: %s%n", winner != null ? winner.getName() : "None"));
+    public Event getEvent(String eventName) throws Exception {
+        Event event = events.get(eventName);
+        if (event == null) {
+            throw new Exception("Current event '" + eventName + "' not in the Market.");
         }
-
-        sb.append(String.format("Options:%n"));
-
-        if (event.getOptions() != null) {
-            int optionIndex = 1;
-            for (Option option : event.getOptions()) {
-                sb.append(String.format("\t%d. %s (Purchased Shares: %.2f)%n",
-                        optionIndex++, option.getName(), option.getTotalShares()));
-            }
-        }
-        sb.append(String.format("--------------------------------------------------%n"));
-
-        return sb.toString();
+        return event;
     }
 
-    /**
-     * Deposits into an event's MM account, guarding against events whose MM
-     * link is missing (e.g. incomplete data) rather than throwing an NPE.
-     */
     private void depositToMm(Event event, double amount) {
         User mm = event.getMmAccount();
         if (mm != null && amount != 0) {
@@ -277,25 +227,16 @@ public class SystemManager {
         }
     }
 
-    public Event getEvent(String eventId) throws Exception {
-        Event event = events.get(eventId);
-        if (event == null) {
-            throw new Exception("Current event '" + eventId + "' not in the Market.");
-        }
-        return event;
-    }
+    public TradeMonitor<PurchaseReceipt> executePurchase(String eventName, int optionIndex, int amount, User buyer) throws Exception {
+        Event event = getEvent(eventName);
+        ITradingEngine engine = tradingEngines.get(eventName);
 
-    public TradeMonitor<PurchaseReceipt> executePurchase(String eventId, int optionIndex, int amount, User buyer) throws Exception {
-        Event event = getEvent(eventId);
-        ITradingEngine engine = tradingEngines.get(eventId);
-
-        if (engine == null) throw new Exception("Trading engine for event '" + eventId + "' is missing.");
+        if (engine == null) throw new Exception("Trading engine for event '" + eventName + "' is missing.");
         if (optionIndex < 0 || optionIndex >= event.getOptions().size()) throw new Exception("Invalid option selection.");
-        if (event.getStatus() != EventStatus.ACTIVE) throw new Exception("Event '" + eventId + "' is no longer active.");
+        if (event.getStatus() != EventStatus.ACTIVE) throw new Exception("Event '" + eventName + "' is no longer active.");
 
         if (engineService == null) engineService = new EngineService();
 
-        // Add the explicit type here
         TradeMonitor<PurchaseReceipt> monitor = new TradeMonitor<>();
 
         engineService.submitTask(() -> {
@@ -315,12 +256,12 @@ public class SystemManager {
                             throw new Exception("Account is locked due to a negative balance. No further actions allowed until balance is positive.");
                         }
                         buyer.withdraw(totalCost);
-                        event.depositToContract(sharesCost); // NEW — this is the money that funds future payouts
+                        event.depositToContract(sharesCost);
 
-                        com.data.users.entities.Portfolio portfolio = buyer.getPortfolios().get(eventId);
+                        com.data.users.entities.Portfolio portfolio = buyer.getPortfolios().get(eventName);
                         if (portfolio == null) {
                             portfolio = new com.data.users.entities.Portfolio();
-                            buyer.getPortfolios().put(eventId, portfolio);
+                            buyer.getPortfolios().put(eventName, portfolio);
                         }
 
                         double currentHoldings = portfolio.getHoldings().getOrDefault(selectedOption.getName(), 0.0);
@@ -349,192 +290,16 @@ public class SystemManager {
         return monitor;
     }
 
-    public TradeMonitor<FinalReceipt> closeEvent(String eventId, int winningOptionIndex) throws Exception {
-        Event event = getEvent(eventId);
-
-        if (event.getStatus() != EventStatus.ACTIVE) {
-            throw new Exception("Event is not active.");
-        }
-
-        TradeMonitor<FinalReceipt> monitor = new TradeMonitor<>();
-
-        engineService.submitTask(() -> {
-            FinalReceipt receipt = null;
-            try {
-                synchronized (event) {
-                    if (event.getStatus() != EventStatus.ACTIVE) {
-                        throw new Exception("Event was already closed.");
-                    }
-
-                    event.setStatus(EventStatus.CLOSED);
-                    Option winningOption = event.getOptions().get(winningOptionIndex);
-                    event.setWinningOption(winningOption);
-
-                    double baseValue = event.getBaseValue();
-                    double totalMarketNetPayout = 0.0;
-                    double totalMarketCommission = 0.0;
-
-                    for (User user : userManager.getAllUsers()) {
-                        com.data.users.entities.Portfolio portfolio = user.getPortfolios().get(eventId);
-                        if (portfolio != null) {
-                            double winningShares = portfolio.getHoldings().getOrDefault(winningOption.getName(), 0.0);
-                            if (winningShares > 0) {
-                                double grossPayout = winningShares * baseValue;
-                                double userCommission = (event.getCommissionType() == CommissionType.ON_CLOSE)
-                                        ? grossPayout * (event.getCommissionRate() / 100.0) : 0.0;
-                                double netPayout = grossPayout - userCommission;
-
-                                event.withdrawFromContract(grossPayout); // NEW — pull it from the event's own money
-                                user.deposit(netPayout);
-                                portfolio.setRevenue(netPayout);
-
-                                totalMarketNetPayout += netPayout;
-                                totalMarketCommission += userCommission;
-                            }
-                        }
-                    }
-
-                    if (totalMarketCommission > 0) {
-                        depositToMm(event, totalMarketCommission);
-                        event.addCommission(totalMarketCommission);
-                    }
-
-                    // Whatever's left in the event's pot — unused subsidy, minted
-                    // collateral for shares nobody redeemed, etc. — returns to the MM.
-                    // now that mint collateral actually lives in the contract.)
-
-                    double leftover = event.getContractBalance();
-                    if (leftover > 0) {
-                        depositToMm(event, leftover);
-                        event.withdrawFromContract(leftover);
-                    }
-
-                    receipt = new FinalReceipt(event.getName(), winningOption.getName(), totalMarketNetPayout, totalMarketCommission);
-                }
-            } catch (Exception e) {
-                monitor.fail(e);
-            } finally {
-                if (receipt != null) monitor.complete(receipt);
-            }
-            return null;
-        });
-
-        return monitor;
-    }
-
-    public String getEventDetailedStatus(String eventId) throws Exception {
-        Event event = getEvent(eventId);
-        ITradingEngine engine = tradingEngines.get(eventId);
-
-        StringBuilder sb = new StringBuilder();
-
-        sb.append(buildEventHeader(event));
-        sb.append(buildOptionsStatus(event, engine));
-        sb.append(buildCommissionStatus(event));
-        sb.append(buildTradingHistory(event));
-        sb.append(buildClosedStatus(event));
-
-        return sb.toString();
-    }
-
-    private String buildEventHeader(Event event) {
-        return String.format("%n--- Event Status: %s (%s) ---%n", event.getName(), event.getStatus().name());
-    }
-
-    private String buildOptionsStatus(Event event, ITradingEngine engine) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(String.format("Current Options Status:%n"));
-        for (Option opt : event.getOptions()) {
-            double currentPrice = (engine != null) ? engine.getCurrentPrice(opt, event.getOptions()) : 0.0;
-            sb.append(String.format("\t- %s: Current Value: %.2f | Total Shares: %.2f%n",
-                    opt.getName(), currentPrice, opt.getTotalShares()));
-        }
-        return sb.toString();
-    }
-
-    private String buildCommissionStatus(Event event) {
-        return String.format("%nTotal Commission Collected: %.2f$%n", event.getTotalCommissionCollected());
-    }
-
-    private String buildTradingHistory(Event event) {
-        StringBuilder sb = new StringBuilder();
-        List<Ticket> history = event.getHistory(); //[cite: 1]
-        sb.append(String.format("%nTrading History (Latest first):%n"));
-
-        if (history.isEmpty()) {
-            sb.append(String.format("\tNo transactions yet.%n"));
-        } else {
-            for (int i = history.size() - 1; i >= 0; i--) {
-                Ticket t = history.get(i);
-                sb.append(String.format("\tOption: %s | Amount: %d | Price Paid: %.2f$%n",
-                        t.getOption().getName(), t.getAmount(), t.getPricePaid()));
-            }
-        }
-        return sb.toString();
-    }
-
-    private String buildClosedStatus(Event event) {
-        if (event.getStatus() == EventStatus.CLOSED) {
-            Option winner = event.getWinningOption(); //[cite: 1]
-            return String.format("%nEvent is CLOSED.%nWinning Option: %s%n",
-                    winner != null ? winner.getName() : "None");
-        }
-        return "";
-    }
-
-    public String getEventCurrentState(String eventId) throws Exception {
-        Event event = getEvent(eventId);
-        ITradingEngine engine = tradingEngines.get(eventId);
-        return buildOptionsStatus(event, engine);
-    }
-
-    public double getOptionCurrentPrice(String eventId, int optionIndex) throws Exception {
-        Event event = getEvent(eventId);
-
-        // If closed, hardcode prices to 1.0 (Winner) or 0.0 (Losers)
-        if (event.getStatus() == EventStatus.CLOSED) {
-            Option selectedOption = event.getOptions().get(optionIndex);
-            return (event.getWinningOption() != null && event.getWinningOption().getName().equals(selectedOption.getName())) ? 1.0 : 0.0;
-        }
-
-        ITradingEngine engine = tradingEngines.get(eventId);
-        if (engine == null) return 0.0;
-
-        Option selectedOption = event.getOptions().get(optionIndex);
-        return engine.getCurrentPrice(selectedOption, event.getOptions());
-    }
-
-    public List<User> getUsers() {
-        if (userManager == null) {
-            return new ArrayList<>();
-        }
-        return new ArrayList<>(userManager.getAllUsers());
-    }
-
-    public double getPurchaseCostPreview(String eventId, int optionIndex, int amount) throws Exception {
-        Event event = getEvent(eventId);
-        ITradingEngine engine = tradingEngines.get(eventId);
-
-        if (engine == null) return 0.0;
-
-        Option selectedOption = event.getOptions().get(optionIndex);
-        double sharesCost = engine.calculatePurchaseCost(selectedOption, amount, event.getOptions());
-        double commissionCost = (event.getCommissionType() == CommissionType.ON_PURCHASE)
-                ? sharesCost * (event.getCommissionRate() / 100.0) : 0.0;
-
-        return sharesCost + commissionCost;
-    }
-
-    public TradeMonitor<PurchaseReceipt> executeOBTrade(String eventId, int optionIndex, int amount, double limitPrice, OrderDirection direction, User user) throws Exception {
-        Event event = getEvent(eventId);
-        ITradingEngine engine = tradingEngines.get(eventId);
+    public TradeMonitor<PurchaseReceipt> executeOBTrade(String eventName, int optionIndex, int amount, double limitPrice, OrderDirection direction, User user) throws Exception {
+        Event event = getEvent(eventName);
+        ITradingEngine engine = tradingEngines.get(eventName);
 
         if (!(engine instanceof com.engine.OrderBookEngine obEngine)) {
             throw new Exception("Event is not an Order Book event.");
         }
 
         if (user.isBlocked()) {
-            throw new Exception("Account is locked due to a negative balance. No further actions allowed until balance is positive.");
+            throw new Exception("Account is locked due to a negative balance.");
         }
 
         TradeMonitor<PurchaseReceipt> monitor = new TradeMonitor<>();
@@ -545,10 +310,9 @@ public class SystemManager {
                     if (event.getStatus() != EventStatus.ACTIVE) throw new Exception("Event closed.");
 
                     Option selectedOption = event.getOptions().get(optionIndex);
-                    // Safe binary check
                     Option oppositeOption = (event.getOptions().size() == 2) ? event.getOptions().get(1 - optionIndex) : null;
 
-                    com.data.users.entities.Portfolio p = user.getPortfolios().computeIfAbsent(eventId, k -> new com.data.users.entities.Portfolio());
+                    com.data.users.entities.Portfolio p = user.getPortfolios().computeIfAbsent(eventName, k -> new com.data.users.entities.Portfolio());
 
                     if (direction == OrderDirection.SELL) {
                         double sharesOwned = p.getHoldings().getOrDefault(selectedOption.getName(), 0.0);
@@ -575,23 +339,175 @@ public class SystemManager {
         return monitor;
     }
 
-    public Map<String, Double> getOptionOBStats(String eventId, int optionIndex) throws Exception {
-        Event event = getEvent(eventId);
+    public TradeMonitor<FinalReceipt> closeEvent(String eventName, int winningOptionIndex) throws Exception {
+        Event event = getEvent(eventName);
+
+        if (event.getStatus() != EventStatus.ACTIVE) {
+            throw new Exception("Event is not active.");
+        }
+
+        TradeMonitor<FinalReceipt> monitor = new TradeMonitor<>();
+
+        engineService.submitTask(() -> {
+            FinalReceipt receipt = null;
+            try {
+                synchronized (event) {
+                    if (event.getStatus() != EventStatus.ACTIVE) {
+                        throw new Exception("Event was already closed.");
+                    }
+
+                    event.setStatus(EventStatus.CLOSED);
+                    Option winningOption = event.getOptions().get(winningOptionIndex);
+                    event.setWinningOption(winningOption);
+
+                    double baseValue = event.getBaseValue();
+                    double totalMarketNetPayout = 0.0;
+                    double totalMarketCommission = 0.0;
+
+                    for (User user : userManager.getAllUsers()) {
+                        com.data.users.entities.Portfolio portfolio = user.getPortfolios().get(eventName);
+                        if (portfolio != null) {
+                            double winningShares = portfolio.getHoldings().getOrDefault(winningOption.getName(), 0.0);
+                            if (winningShares > 0) {
+                                double grossPayout = winningShares * baseValue;
+                                double userCommission = (event.getCommissionType() == CommissionType.ON_CLOSE)
+                                        ? grossPayout * (event.getCommissionRate() / 100.0) : 0.0;
+                                double netPayout = grossPayout - userCommission;
+
+                                event.withdrawFromContract(grossPayout);
+                                user.deposit(netPayout);
+                                portfolio.setRevenue(netPayout);
+
+                                totalMarketNetPayout += netPayout;
+                                totalMarketCommission += userCommission;
+                            }
+                        }
+                    }
+
+                    if (totalMarketCommission > 0) {
+                        depositToMm(event, totalMarketCommission);
+                        event.addCommission(totalMarketCommission);
+                    }
+
+                    double leftover = event.getContractBalance();
+                    if (leftover > 0) {
+                        depositToMm(event, leftover);
+                        event.withdrawFromContract(leftover);
+                    }
+
+                    receipt = new FinalReceipt(event.getName(), winningOption.getName(), totalMarketNetPayout, totalMarketCommission);
+                }
+            } catch (Exception e) {
+                monitor.fail(e);
+            } finally {
+                if (receipt != null) monitor.complete(receipt);
+            }
+            return null;
+        });
+
+        return monitor;
+    }
+
+    public String getEventDetailedStatus(String eventName) throws Exception {
+        Event event = getEvent(eventName);
+        ITradingEngine engine = tradingEngines.get(eventName);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("%n--- Event Status: %s (%s) ---%n", event.getName(), event.getStatus().name()));
+        sb.append(buildOptionsStatus(event, engine));
+        sb.append(String.format("%nTotal Commission Collected: %.2f$%n", event.getTotalCommissionCollected()));
+        sb.append(buildTradingHistory(event));
+
+        if (event.getStatus() == EventStatus.CLOSED) {
+            Option winner = event.getWinningOption();
+            sb.append(String.format("%nEvent is CLOSED.%nWinning Option: %s%n", winner != null ? winner.getName() : "None"));
+        }
+        return sb.toString();
+    }
+
+    public String getEventCurrentState(String eventName) throws Exception {
+        Event event = getEvent(eventName);
+        ITradingEngine engine = tradingEngines.get(eventName);
+        return buildOptionsStatus(event, engine);
+    }
+
+    private String buildOptionsStatus(Event event, ITradingEngine engine) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("Current Options Status:%n"));
+        for (Option opt : event.getOptions()) {
+            double currentPrice = (engine != null) ? engine.getCurrentPrice(opt, event.getOptions()) : 0.0;
+            sb.append(String.format("\t- %s: Current Value: %.2f | Total Shares: %.2f%n",
+                    opt.getName(), currentPrice, opt.getTotalShares()));
+        }
+        return sb.toString();
+    }
+
+    private String buildTradingHistory(Event event) {
+        StringBuilder sb = new StringBuilder();
+        List<Ticket> history = event.getHistory();
+        sb.append(String.format("%nTrading History (Latest first):%n"));
+
+        if (history.isEmpty()) {
+            sb.append(String.format("\tNo transactions yet.%n"));
+        } else {
+            for (int i = history.size() - 1; i >= 0; i--) {
+                Ticket t = history.get(i);
+                sb.append(String.format("\tOption: %s | Amount: %d | Price Paid: %.2f$%n",
+                        t.getOption().getName(), t.getAmount(), t.getPricePaid()));
+            }
+        }
+        return sb.toString();
+    }
+
+    public double getOptionCurrentPrice(String eventName, int optionIndex) throws Exception {
+        Event event = getEvent(eventName);
+
+        if (event.getStatus() == EventStatus.CLOSED) {
+            Option selectedOption = event.getOptions().get(optionIndex);
+            return (event.getWinningOption() != null && event.getWinningOption().getName().equals(selectedOption.getName())) ? 1.0 : 0.0;
+        }
+
+        ITradingEngine engine = tradingEngines.get(eventName);
+        if (engine == null) return 0.0;
+
+        Option selectedOption = event.getOptions().get(optionIndex);
+        return engine.getCurrentPrice(selectedOption, event.getOptions());
+    }
+
+    public double getPurchaseCostPreview(String eventName, int optionIndex, int amount) throws Exception {
+        Event event = getEvent(eventName);
+        ITradingEngine engine = tradingEngines.get(eventName);
+        if (engine == null) return 0.0;
+
+        Option selectedOption = event.getOptions().get(optionIndex);
+        double sharesCost = engine.calculatePurchaseCost(selectedOption, amount, event.getOptions());
+        double commissionCost = (event.getCommissionType() == CommissionType.ON_PURCHASE)
+                ? sharesCost * (event.getCommissionRate() / 100.0) : 0.0;
+
+        return sharesCost + commissionCost;
+    }
+
+    private com.engine.OrderBookEngine getAsOrderBookEngine(String eventName) throws Exception {
+        ITradingEngine engine = tradingEngines.get(eventName);
+        if (!(engine instanceof com.engine.OrderBookEngine obEngine)) {
+            throw new Exception("Event '" + eventName + "' is not an Order Book event.");
+        }
+        return obEngine;
+    }
+
+    public Map<String, Double> getOptionOBStats(String eventName, int optionIndex) throws Exception {
+        Event event = getEvent(eventName);
         String optName = event.getOptions().get(optionIndex).getName();
         Map<String, Double> stats = new HashMap<>();
 
         if (event.getStatus() == EventStatus.CLOSED) {
             boolean isWinner = event.getWinningOption() != null && event.getWinningOption().getName().equals(optName);
             double finalPrice = isWinner ? 1.0 : 0.0;
-
-            stats.put("BID", 0.0);
-            stats.put("ASK", 0.0);
-            stats.put("LAST", finalPrice);
-            stats.put("MID", finalPrice);
-            stats.put("SPREAD", 0.0);
+            stats.put("BID", 0.0); stats.put("ASK", 0.0); stats.put("LAST", finalPrice);
+            stats.put("MID", finalPrice); stats.put("SPREAD", 0.0);
             return stats;
         }
-        OrderBookEngine obEngine = getAsOrderBookEngine(eventId);
+        OrderBookEngine obEngine = getAsOrderBookEngine(eventName);
 
         double bid = obEngine.getBestBid(optName);
         double ask = obEngine.getBestAsk(optName);
@@ -599,60 +515,43 @@ public class SystemManager {
         double mid = (bid > 0 && ask > 0) ? (bid + ask) / 2.0 : (bid > 0 ? bid : ask);
         double spread = (bid > 0 && ask > 0) ? Math.abs(ask - bid) : 0.0;
 
-        stats.put("BID", bid);
-        stats.put("ASK", ask);
-        stats.put("LAST", last);
-        stats.put("MID", mid);
-        stats.put("SPREAD", spread);
+        stats.put("BID", bid); stats.put("ASK", ask); stats.put("LAST", last);
+        stats.put("MID", mid); stats.put("SPREAD", spread);
         return stats;
     }
 
-    public List<OBOrder> getEventBids(String eventId) throws Exception {
-        Event event = getEvent(eventId);
-        com.engine.OrderBookEngine obEngine = getAsOrderBookEngine(eventId);
+    public List<OBOrder> getEventBids(String eventName) throws Exception {
+        Event event = getEvent(eventName);
+        com.engine.OrderBookEngine obEngine = getAsOrderBookEngine(eventName);
         List<OBOrder> allBids = new ArrayList<>();
-
         for (Option opt : event.getOptions()) {
             List<OBOrder> bids = obEngine.getAllBids(opt.getName());
             if (bids != null) {
-                for (OBOrder bid : bids) {
-                    bid.setOption(opt);
-                }
+                bids.forEach(b -> b.setOption(opt));
                 allBids.addAll(bids);
             }
         }
         return allBids;
     }
 
-    public List<OBOrder> getEventAsks(String eventId) throws Exception {
-        Event event = getEvent(eventId);
-        com.engine.OrderBookEngine obEngine = getAsOrderBookEngine(eventId);
+    public List<OBOrder> getEventAsks(String eventName) throws Exception {
+        Event event = getEvent(eventName);
+        com.engine.OrderBookEngine obEngine = getAsOrderBookEngine(eventName);
         List<OBOrder> allAsks = new ArrayList<>();
-
         for (Option opt : event.getOptions()) {
             List<OBOrder> asks = obEngine.getAllAsks(opt.getName());
             if (asks != null) {
-                for (OBOrder ask : asks) {
-                    ask.setOption(opt);
-                }
+                asks.forEach(a -> a.setOption(opt));
                 allAsks.addAll(asks);
             }
         }
         return allAsks;
     }
 
-    private com.engine.OrderBookEngine getAsOrderBookEngine(String eventId) throws Exception {
-        ITradingEngine engine = tradingEngines.get(eventId);
-        if (!(engine instanceof com.engine.OrderBookEngine obEngine)) {
-            throw new Exception("Event '" + eventId + "' is not an Order Book event.");
-        }
-        return obEngine;
-    }
-
-    public String getOBParticipantsOverview(String eventId) throws Exception {
-        Event event = getEvent(eventId);
-        List<OBOrder> allBids = getEventBids(eventId);
-        List<OBOrder> allAsks = getEventAsks(eventId);
+    public String getOBParticipantsOverview(String eventName) throws Exception {
+        Event event = getEvent(eventName);
+        List<OBOrder> allBids = getEventBids(eventName);
+        List<OBOrder> allAsks = getEventAsks(eventName);
         StringBuilder sb = new StringBuilder();
 
         for (User user : getUsers()) {
@@ -669,16 +568,14 @@ public class SystemManager {
 
     private boolean appendUserHoldings(StringBuilder userSb, User user, Event event) throws Exception {
         boolean hasHoldings = false;
-        com.data.users.entities.Portfolio p = user.getPortfolios().get(event.getId());
-
+        com.data.users.entities.Portfolio p = user.getPortfolios().get(event.getName());
         if (p != null && p.getHoldings() != null) {
             for (int i = 0; i < event.getOptions().size(); i++) {
                 Option opt = event.getOptions().get(i);
                 double shares = p.getHoldings().getOrDefault(opt.getName(), 0.0);
-
                 if (shares > 0) {
                     hasHoldings = true;
-                    double currentValue = shares * getOptionCurrentPrice(event.getId(), i);
+                    double currentValue = shares * getOptionCurrentPrice(event.getName(), i);
                     userSb.append(String.format("  - %.0f shares of %s (Est. Value: $%.2f)%n", shares, opt.getName(), currentValue));
                 }
             }
@@ -688,14 +585,12 @@ public class SystemManager {
 
     private boolean appendUserOrders(StringBuilder userSb, User user, List<OBOrder> allBids, List<OBOrder> allAsks) {
         boolean hasOrders = false;
-
         for (OBOrder bid : allBids) {
             if (bid.getUser().getName().equals(user.getName())) {
                 hasOrders = true;
                 userSb.append(String.format("  - [BID] %d %s @ $%.2f%n", bid.getAmount(), bid.getOption().getName(), bid.getPrice()));
             }
         }
-
         for (OBOrder ask : allAsks) {
             if (ask.getUser().getName().equals(user.getName())) {
                 hasOrders = true;
@@ -705,4 +600,7 @@ public class SystemManager {
         return hasOrders;
     }
 
+    public EngineService getEngineService() {
+        return this.engineService;
+    }
 }

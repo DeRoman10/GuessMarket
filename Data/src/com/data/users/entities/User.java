@@ -36,6 +36,15 @@ public class User implements Serializable {
         this.balanceHistory = new ArrayList<>();
     }
 
+    public User(String name) {
+        this.name = name;
+        this.balance = 0.0;
+        this.portfolios = new HashMap<>();
+        this.managedEvents = new HashSet<>();
+        this.balanceHistory = new ArrayList<>();
+        this.balanceHistory.add(this.balance);
+    }
+
     void afterUnmarshal(Unmarshaller u, Object parent) {
         this.portfolios = new HashMap<>();
         this.managedEvents = new HashSet<>();
