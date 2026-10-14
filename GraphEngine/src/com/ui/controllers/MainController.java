@@ -8,10 +8,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import okhttp3.*;
-import javafx.animation.Animation;
-import javafx.animation.KeyFrame;
-import javafx.animation.Timeline;
-import javafx.util.Duration;
+import com.ui.core.ApiClient;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -24,14 +21,12 @@ public class MainController {
     @FXML private ComboBox<String> skinCombo;
     @FXML private CheckBox animationToggle;
 
-    private Timeline autoPullTimeline;
     private ViewManager viewManager;
-    private final OkHttpClient httpClient = new OkHttpClient();
 
     public void setManagers(ViewManager viewManager) {
         this.viewManager = viewManager;
         this.viewManager.changeTheme("GuessMarketTradingTheme.css");
-        startAutoRefresh(); // Starts polling the server automatically
+        // polling is owned by ViewManager and starts only after a successful login
     }
 
     @FXML
@@ -81,6 +76,12 @@ public class MainController {
 
     @FXML
     private void handleGlobalLoadFile() {
+        if (viewManager == null || !viewManager.isLoggedIn()) {
+            Alert a = new Alert(Alert.AlertType.WARNING, "Please log in before uploading a file.");
+            a.setHeaderText(null);
+            a.showAndWait();
+            return;
+        }
         File file = chooseXmlFile();
         if (file != null) {
             uploadFileToServer(file);
@@ -104,11 +105,11 @@ public class MainController {
                 .build();
 
         Request request = new Request.Builder()
-                .url("http://localhost:8080/GuessMarketServer_Web_exploded/upload")
+                .url(ApiClient.url("/upload").build())
                 .post(requestBody)
                 .build();
 
-        httpClient.newCall(request).enqueue(new Callback() {
+        ApiClient.http().newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 Platform.runLater(() -> {
@@ -126,11 +127,11 @@ public class MainController {
 
             @Override
             public void onResponse(Call call, Response response) throws IOException {
-                if (viewManager.handleUnauthorized(response.code())) {
+                if (viewManager.handleUnauthorized(response)) {
                     return;
                 }
 
-                String responseData = response.body().string();
+                String responseData = ApiClient.message(response.body().string());
                 Platform.runLater(() -> {
                     progressDialog.setResult(null);
                     progressDialog.close();
@@ -138,20 +139,29 @@ public class MainController {
                     if (response.isSuccessful()) {
                         if (filePathField != null) filePathField.setText(file.getAbsolutePath());
                         viewManager.refreshAllScreens();
+                        // the task requires an explicit "file is valid" message for the uploader
+                        Alert ok = new Alert(Alert.AlertType.INFORMATION);
+                        ok.setTitle("Upload Successful");
+                        ok.setHeaderText(null);
+                        ok.setContentText(responseData);
+                        ok.showAndWait();
                     } else {
                         if (filePathField != null) filePathField.setText("Error loading file.");
                         Alert alert = new Alert(Alert.AlertType.ERROR);
                         alert.setTitle("Server Error");
                         alert.setHeaderText("File validation/upload failed");
-                        alert.setContentText(responseData);
+                        TextArea area = new TextArea(responseData);
+                        area.setEditable(false);
+                        area.setWrapText(true);
+                        area.setPrefRowCount(10);
+                        alert.getDialogPane().setContent(area);
+                        alert.setResizable(true);
                         alert.showAndWait();
                     }
                 });
             }
-        }); // End of Callback
-    } // End of uploadFileToServer
-
-    // --- Methods moved OUT of the Callback block ---
+        });
+    }
 
     private Dialog<Void> buildProgressDialog() {
         Dialog<Void> progressDialog = new Dialog<>();
@@ -171,7 +181,7 @@ public class MainController {
 
     @FXML
     private void navigateToEvents() {
-        if (viewManager != null) {
+        if (viewManager != null && viewManager.isLoggedIn()) {
             viewManager.refreshAllScreens();
             viewManager.navigateTo("MARKET_DASHBOARD");
         }
@@ -179,28 +189,36 @@ public class MainController {
 
     @FXML
     private void navigateToUsers() {
-        if (viewManager != null) {
+        if (viewManager != null && viewManager.isLoggedIn()) {
             viewManager.refreshAllScreens();
             viewManager.navigateTo("USER_DASHBOARD");
         }
     }
 
-    public void startAutoRefresh() {
-        if (autoPullTimeline != null) return;
+    @FXML
+    private void navigateToLogin() {
+        if (viewManager == null || !viewManager.isLoggedIn()) return;
 
-        autoPullTimeline = new Timeline(new KeyFrame(Duration.seconds(1.5), event -> {
-            if (viewManager != null) {
-                viewManager.refreshAllScreens();
+        Request request = ApiClient.post(ApiClient.url("/logout").build());
+        ApiClient.http().newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                viewManager.performLogout();
             }
-        }));
 
-        autoPullTimeline.setCycleCount(Animation.INDEFINITE);
-        autoPullTimeline.play();
+            @Override
+            public void onResponse(Call call, Response response) {
+                response.close();
+                viewManager.performLogout();
+            }
+        });
     }
 
-    public void stopAutoRefresh() {
-        if (autoPullTimeline != null) {
-            autoPullTimeline.stop();
+    @FXML
+    private void navigateToChat() {
+        if (viewManager != null && viewManager.isLoggedIn()) {
+            viewManager.refreshAllScreens();
+            viewManager.navigateTo("CHAT_DASHBOARD");
         }
     }
 }

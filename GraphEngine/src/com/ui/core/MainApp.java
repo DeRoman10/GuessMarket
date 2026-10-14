@@ -10,9 +10,6 @@ import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
-import java.io.File;
-import java.util.Scanner;
-
 public class MainApp extends Application {
 
     private ViewManager viewManager;
@@ -29,20 +26,27 @@ public class MainApp extends Application {
         FXMLLoader eventLoader = new FXMLLoader(getClass().getResource("/com/ui/pages/eventPage.fxml"));
         Parent marketViewNode = eventLoader.load();
         EventController eventController = eventLoader.getController();
+        eventController.setManagers(viewManager);          // was never called: 401s on this screen were silently ignored
 
         FXMLLoader userLoader = new FXMLLoader(getClass().getResource("/com/ui/pages/userPage.fxml"));
         Parent userViewNode = userLoader.load();
         UserController userController = userLoader.getController();
-        userController.setManagers(viewManager);
+        userController.setManagers(viewManager);           // no longer fetches anything (we are not logged in yet)
 
         FXMLLoader loginLoader = new FXMLLoader(getClass().getResource("/com/ui/pages/loginPage.fxml"));
         Parent loginViewNode = loginLoader.load();
         LoginController loginController = loginLoader.getController();
         loginController.setManagers(viewManager);
 
+        FXMLLoader chatLoader = new FXMLLoader(getClass().getResource("/com/ui/pages/chatPage.fxml"));
+        Parent chatViewNode = chatLoader.load();
+        ChatController chatController = chatLoader.getController();
+        chatController.setManagers(viewManager);
+
         viewManager.addScreen("MARKET_DASHBOARD", marketViewNode, eventController);
         viewManager.addScreen("USER_DASHBOARD", userViewNode, userController);
         viewManager.addScreen("LOGIN_DASHBOARD", loginViewNode, loginController);
+        viewManager.addScreen("CHAT_DASHBOARD", chatViewNode, chatController);
 
         BorderPane borderPane = (BorderPane) viewManager.getMainScene().getRoot();
         borderPane.setTop(topBarNode);
@@ -58,47 +62,38 @@ public class MainApp extends Application {
         primaryStage.setMinHeight(700);
         primaryStage.show();
 
-        boolean enableAnimations = false;
-        File animFile = new File("animation_state.txt");
-        if (animFile.exists()) {
-            try (Scanner scanner = new Scanner(animFile)) {
-                if (scanner.hasNextBoolean()) {
-                    enableAnimations = scanner.nextBoolean();
-                }
-            } catch (Exception e) {
-                System.err.println("Could not read animation state.");
-            }
-        }
+        // startup animation is always on
+        borderPane.setVisible(false);
 
-        if (enableAnimations) {
-            borderPane.setVisible(false);
+        javafx.scene.shape.Circle loadingRing = new javafx.scene.shape.Circle(40);
+        loadingRing.setFill(javafx.scene.paint.Color.TRANSPARENT);
+        loadingRing.setStroke(javafx.scene.paint.Color.web("#38BDF8"));
+        loadingRing.setStrokeWidth(6);
+        loadingRing.getStrokeDashArray().addAll(35d, 15d);
 
-            javafx.scene.shape.Circle loadingRing = new javafx.scene.shape.Circle(40);
-            loadingRing.setFill(javafx.scene.paint.Color.TRANSPARENT);
-            loadingRing.setStroke(javafx.scene.paint.Color.web("#38BDF8"));
-            loadingRing.setStrokeWidth(6);
-            loadingRing.getStrokeDashArray().addAll(35d, 15d);
+        rootContainer.getChildren().addAll(borderPane, loadingRing);
 
-            rootContainer.getChildren().addAll(borderPane, loadingRing);
+        RotateTransition rotate = new RotateTransition(Duration.seconds(1.2), loadingRing);
+        rotate.setByAngle(360);
 
-            RotateTransition rotate = new RotateTransition(Duration.seconds(1.2), loadingRing);
-            rotate.setByAngle(360);
-
-            rotate.setOnFinished(e -> {
-                FadeTransition fadeOut = new FadeTransition(Duration.seconds(0.3), loadingRing);
-                fadeOut.setToValue(0.0);
-                fadeOut.setOnFinished(ev -> {
-                    rootContainer.getChildren().remove(loadingRing);
-                    borderPane.setVisible(true);
-                    playStartupAnimations(borderPane);
-                });
-                fadeOut.play();
+        rotate.setOnFinished(e -> {
+            FadeTransition fadeOut = new FadeTransition(Duration.seconds(0.3), loadingRing);
+            fadeOut.setToValue(0.0);
+            fadeOut.setOnFinished(ev -> {
+                rootContainer.getChildren().remove(loadingRing);
+                borderPane.setVisible(true);
+                playStartupAnimations(borderPane);
             });
+            fadeOut.play();
+        });
 
-            rotate.play();
-        } else {
-            rootContainer.getChildren().add(borderPane);
-        }
+        rotate.play();
+    }
+
+    @Override
+    public void stop() {
+        if (viewManager != null) viewManager.stopPolling();
+        ApiClient.shutdown();
     }
 
     private void playStartupAnimations(Parent rootNode) {
@@ -118,7 +113,7 @@ public class MainApp extends Application {
         scale.setToX(1.0);
         scale.setToY(1.0);
 
-        ParallelTransition parallelTransition = new ParallelTransition(fade, translate, scale);
-        parallelTransition.play();
+        new ParallelTransition(fade, translate, scale).play();
     }
+
 }

@@ -1,4 +1,4 @@
-package servlets.system;
+package servlet.system;
 
 import com.maneger.SystemManager;
 import jakarta.servlet.ServletContextEvent;
@@ -23,3 +23,4 @@ public class ServerInitializer implements ServletContextListener {
         }
     }
 }
+

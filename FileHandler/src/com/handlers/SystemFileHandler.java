@@ -4,9 +4,9 @@ import com.data.files.entities.Market;
 import jakarta.xml.bind.JAXBContext;
 import jakarta.xml.bind.Marshaller;
 import jakarta.xml.bind.Unmarshaller;
-import javax.xml.stream.XMLInputFactory;
-import javax.xml.stream.XMLStreamReader;
+
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 
 public abstract class SystemFileHandler {
 
@@ -14,15 +14,22 @@ public abstract class SystemFileHandler {
         JAXBContext context = JAXBContext.newInstance(Market.class);
         Unmarshaller unmarshaller = context.createUnmarshaller();
 
-        XMLInputFactory xif = XMLInputFactory.newInstance();
-        xif.setProperty(XMLInputFactory.IS_NAMESPACE_AWARE, false);
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        int nRead;
+        byte[] data = new byte[1024];
+        while ((nRead = inputStream.read(data, 0, data.length)) != -1) {
+            buffer.write(data, 0, nRead);
+        }
+        String xmlContent = new String(buffer.toByteArray(), StandardCharsets.UTF_8);
 
-        try (BufferedInputStream bis = new BufferedInputStream(inputStream)) {
-            XMLStreamReader xsr = xif.createXMLStreamReader(bis);
-            return (Market) unmarshaller.unmarshal(xsr);
+        xmlContent = xmlContent.replace("\uFEFF", "");
+
+        xmlContent = xmlContent.replaceFirst("<Guess-Market", "<Guess-Market xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"");
+
+        try (StringReader sr = new StringReader(xmlContent)) {
+            return (Market) unmarshaller.unmarshal(sr);
         }
     }
-
     public static void saveXmlData(Market market, String filePath) throws Exception {
         JAXBContext context = JAXBContext.newInstance(Market.class);
         Marshaller marshaller = context.createMarshaller();

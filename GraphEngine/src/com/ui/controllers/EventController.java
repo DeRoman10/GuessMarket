@@ -1,3 +1,4 @@
+
 package com.ui.controllers;
 
 import com.data.events.entities.Event;
@@ -22,11 +23,13 @@ import javafx.scene.layout.TilePane;
 import javafx.scene.layout.VBox;
 import javafx.util.StringConverter;
 import okhttp3.*;
+import com.ui.core.ApiClient;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -39,7 +42,7 @@ public class EventController implements IRefreshable {
 
     // --- Left Panel UI Elements ---
     @FXML private VBox eventsListPanel;
-    @FXML private VBox eventsTileContainer;
+    @FXML private TilePane eventsTileContainer;
 
     // --- Center/Right Panel UI Elements ---
     @FXML private HBox orderBookTablesBox;
@@ -64,15 +67,21 @@ public class EventController implements IRefreshable {
     @FXML private HBox optionsSummaryContainer;
 
     private ViewManager viewManager;
-    private XYChart.Series<Number, Number> priceSeries;
+    private XYChart.Series<Number, Number> priceSeries;       // price line of option 1
+    private XYChart.Series<Number, Number> secondPriceSeries; // price line of option 2
     private Event currentSelectedEvent;
     private Button currentlySelectedEventBtn = null;
 
-    private final OkHttpClient httpClient = new OkHttpClient();
-    private final Gson gson = new Gson();
-    private final String BASE_URL = "http://localhost:8080/GuessMarketServer_Web_exploded";
+    private final OkHttpClient httpClient = ApiClient.http();     // shared client = shared session cookie
+    private final Gson gson = ApiClient.GSON;
+    private volatile boolean pulling = false;                        // don't stack requests if the server is slow
+    // Last rendered state per widget group: the 1s pull only touches the UI when something really changed
+    private String lastChartEvent = "";
+    private String lastChartKey = "";
+    private String lastSummaryKey = "";
+    private String lastOrderBookKey = "";
+    private String lastOrderBookEvent = "";
 
-    // Internal DTOs for parsing JSON from our new Servlet
     private static class OrderBookResponse {
         List<OBOrder> bids;
         List<OBOrder> asks;
@@ -86,6 +95,24 @@ public class EventController implements IRefreshable {
 
     public void setManagers(ViewManager viewManager) {
         this.viewManager = viewManager;
+    }
+
+    /** Clears the selected event and everything drawn for it (called when the user changes). */
+    public void resetSession() {
+        currentSelectedEvent = null;
+        currentlySelectedEventBtn = null;
+        lastChartEvent = "";
+        lastChartKey = "";
+        lastSummaryKey = "";
+        lastOrderBookKey = "";
+        lastOrderBookEvent = "";
+        if (eventsTileContainer != null) eventsTileContainer.getChildren().clear();
+        if (priceSeries != null) priceSeries.getData().clear();
+        if (secondPriceSeries != null) secondPriceSeries.getData().clear();
+        if (historyTable != null) historyTable.getItems().clear();
+        if (buyOrdersTable != null) buyOrdersTable.getItems().clear();
+        if (sellOrdersTable != null) sellOrdersTable.getItems().clear();
+        if (optionsSummaryContainer != null) optionsSummaryContainer.getChildren().clear();
     }
 
     @Override
@@ -135,10 +162,14 @@ public class EventController implements IRefreshable {
         }
 
         priceSeries = new XYChart.Series<>();
-        priceSeries.setName("Deal Price History");
+        priceSeries.setName("Option 1");
+        secondPriceSeries = new XYChart.Series<>();
+        secondPriceSeries.setName("Option 2");
         if (marketChart != null) {
             marketChart.setAnimated(false);
+            marketChart.setLegendVisible(true);
             marketChart.getData().add(priceSeries);
+            marketChart.getData().add(secondPriceSeries);
         }
 
         // 4. Setup Filters
@@ -177,23 +208,25 @@ public class EventController implements IRefreshable {
     private void populateEventTiles() {
         if (eventsTileContainer == null) return;
 
-        Request request = new Request.Builder().url(BASE_URL + "/events").get().build();
+        if (pulling) return;
+        pulling = true;
+        Request request = ApiClient.get(ApiClient.url("/events").build());
 
         httpClient.newCall(request).enqueue(new Callback() {
             @Override
-            public void onFailure(Call call, IOException e) {}
+            public void onFailure(Call call, IOException e) { pulling = false; }
 
             @Override
             public void onResponse(Call call, Response response) throws IOException {
-                if (viewManager != null && viewManager.handleUnauthorized(response.code())) return;
+                pulling = false;
+                if (viewManager != null && viewManager.handleUnauthorized(response)) return;
                 if (!response.isSuccessful()) return;
 
                 Type eventListType = new TypeToken<List<Event>>(){}.getType();
                 List<Event> allEvents = gson.fromJson(response.body().string(), eventListType);
 
                 Platform.runLater(() -> {
-                    eventsTileContainer.getChildren().clear();
-
+                    List<Event> filteredEvents = new ArrayList<>();
                     String selectedMethod = methodFilterCombo != null ? methodFilterCombo.getValue() : "All Methods";
                     String selectedStatus = statusFilterCombo != null ? statusFilterCombo.getValue() : "All Statuses";
                     String selectedCommission = commissionFilterCombo != null ? commissionFilterCombo.getValue() : "All Commissions";
@@ -202,31 +235,59 @@ public class EventController implements IRefreshable {
                         boolean isLmsr = event.getMethod() != null && event.getMethod().getLmsr() != null;
                         if ("LMSR".equals(selectedMethod) && !isLmsr) continue;
                         if ("Order Book".equals(selectedMethod) && isLmsr) continue;
-
                         if (!"All Statuses".equals(selectedStatus) && !event.getStatus().name().equals(selectedStatus)) continue;
-
                         if (!"All Commissions".equals(selectedCommission)) {
                             com.data.events.enums.CommissionType evComm = event.getCommissionType();
                             if ("On Purchase".equals(selectedCommission) && evComm != com.data.events.enums.CommissionType.ON_PURCHASE) continue;
                             if ("On Close".equals(selectedCommission) && evComm != com.data.events.enums.CommissionType.ON_CLOSE) continue;
                         }
+                        filteredEvents.add(event);
+                    }
 
-                        Button eventTile = new Button(event.getName() + " (" + event.getStatus() + ")");
-                        eventTile.getStyleClass().add("action-button");
-                        eventTile.setMaxWidth(Double.MAX_VALUE);
-                        eventTile.setPrefHeight(60);
+                    int currentIndex = 0;
+                    for (Event event : filteredEvents) {
+                        String buttonText = event.getName() + " (" + event.getStatus() + ")";
 
-                        if (currentSelectedEvent != null && currentSelectedEvent.getId().equals(event.getId())) {
-                            eventTile.getStyleClass().remove("action-button");
-                            eventTile.getStyleClass().add("action-button-selected");
-                            currentlySelectedEventBtn = eventTile;
+                        if (currentIndex < eventsTileContainer.getChildren().size()) {
+                            Button existingBtn = (Button) eventsTileContainer.getChildren().get(currentIndex);
+                            existingBtn.setText(buttonText);
+                            existingBtn.setOnAction(e -> selectEvent(event, existingBtn));
 
-                            // Re-fetch details for the selected event automatically
-                            selectEvent(event, currentlySelectedEventBtn);
+                            if (currentSelectedEvent != null && currentSelectedEvent.getName().equals(event.getName())) {
+                                existingBtn.getStyleClass().remove("action-button");
+                                if (!existingBtn.getStyleClass().contains("action-button-selected")) {
+                                    existingBtn.getStyleClass().add("action-button-selected");
+                                }
+                                currentlySelectedEventBtn = existingBtn;
+                                selectEvent(event, existingBtn);
+                            } else {
+                                existingBtn.getStyleClass().remove("action-button-selected");
+                                if (!existingBtn.getStyleClass().contains("action-button")) {
+                                    existingBtn.getStyleClass().add("action-button");
+                                }
+
+                            }
+                        } else {
+                            Button newBtn = new Button(buttonText);
+                            newBtn.getStyleClass().add("action-button");
+                            newBtn.setMaxWidth(Double.MAX_VALUE);
+                            newBtn.setPrefHeight(60);
+                            newBtn.setOnAction(e -> selectEvent(event, newBtn));
+
+                            if (currentSelectedEvent != null && currentSelectedEvent.getName().equals(event.getName())) {
+                                newBtn.getStyleClass().remove("action-button");
+                                newBtn.getStyleClass().add("action-button-selected");
+                                currentlySelectedEventBtn = newBtn;
+                                selectEvent(event, newBtn);
+                            }
+
+                            eventsTileContainer.getChildren().add(newBtn);
                         }
+                        currentIndex++;
+                    }
 
-                        eventTile.setOnAction(e -> selectEvent(event, eventTile));
-                        eventsTileContainer.getChildren().add(eventTile);
+                    while (eventsTileContainer.getChildren().size() > filteredEvents.size()) {
+                        eventsTileContainer.getChildren().remove(eventsTileContainer.getChildren().size() - 1);
                     }
                 });
             }
@@ -258,17 +319,28 @@ public class EventController implements IRefreshable {
     }
 
     private void populateChartAndHistory(Event event) {
-        priceSeries.getData().clear();
-        List<Ticket> history = event.getHistory();
+        List<Ticket> history = event.getHistory() != null ? event.getHistory() : new ArrayList<>();
         List<Option> options = event.getOptions();
+
+        // history is append-only: same event + same size = nothing to redraw (keeps selection and avoids flicker)
+        String chartKey = event.getName() + "#" + history.size();
+        if (chartKey.equals(lastChartKey)) return;
+        boolean sameEvent = event.getName().equals(lastChartEvent);
+        int selectedHistoryRow = (historyTable != null && sameEvent) ? historyTable.getSelectionModel().getSelectedIndex() : -1;
+        lastChartKey = chartKey;
+        lastChartEvent = event.getName();
+
+        priceSeries.getData().clear();
+        secondPriceSeries.getData().clear();
 
         if (options == null || options.isEmpty()) {
             if (historyTable != null) historyTable.getItems().clear();
             return;
         }
 
-        Option firstOption = options.get(0);
-        if (priceYAxis != null) priceYAxis.setLabel("Price for " + firstOption.getName());
+        priceSeries.setName(options.get(0).getName());
+        secondPriceSeries.setName(options.size() > 1 ? options.get(1).getName() : "");
+        if (priceYAxis != null) priceYAxis.setLabel("Price ($)");
 
         if (dealXAxis != null) {
             dealXAxis.setAutoRanging(false);
@@ -276,61 +348,65 @@ public class EventController implements IRefreshable {
             dealXAxis.setUpperBound(Math.max(5, history.size() + 1));
         }
 
-        double initialPrice = 1.0 / options.size();
-        priceSeries.getData().add(new XYChart.Data<>(0, initialPrice));
+        int n = options.size();
+        double[] prices = new double[n];                     // current price of every option
+        java.util.Arrays.fill(prices, event.getBaseValue() / n);
+        addChartPoints(0, prices);
 
-        if (history != null && !history.isEmpty()) {
-            boolean isLmsr = event.getMethod() != null && event.getMethod().getLmsr() != null;
-            if (isLmsr) {
-                int b = event.getMethod().getLmsr().getB();
-                if (b <= 0) b = 100;
-                double[] q = new double[options.size()];
+        boolean isLmsr = event.isLmsr();
+        double[] q = new double[n];                          // LMSR: shares bought per option
+        int b = isLmsr ? Math.max(1, event.getMethod().getLmsr().getB()) : 1;
 
-                for (int i = 0; i < history.size(); i++) {
-                    Ticket ticket = history.get(i);
-                    for (int j = 0; j < options.size(); j++) {
-                        if (options.get(j).getName().equals(ticket.getOption().getName())) {
-                            q[j] += ticket.getAmount();
-                            break;
-                        }
-                    }
-
+        for (int i = 0; i < history.size(); i++) {
+            Ticket ticket = history.get(i);
+            int idx = optionIndexOf(options, ticket.getOption());
+            if (idx >= 0) {
+                if (isLmsr) {
+                    q[idx] += ticket.getAmount();
                     double sumExp = 0.0;
                     for (double shares : q) sumExp += Math.exp(shares / b);
-                    double firstOptionPrice = Math.exp(q[0] / b) / sumExp;
-                    priceSeries.getData().add(new XYChart.Data<>(i + 1, firstOptionPrice));
-                }
-            } else {
-                for (int i = 0; i < history.size(); i++) {
-                    Ticket ticket = history.get(i);
-                    double pricePerShare = ticket.getAmount() > 0 ? ticket.getPricePaid() / ticket.getAmount() : 0.0;
-                    double firstOptionPrice = ticket.getOption().getName().equals(firstOption.getName()) ? pricePerShare : 1.0 - pricePerShare;
-                    priceSeries.getData().add(new XYChart.Data<>(i + 1, firstOptionPrice));
+                    for (int j = 0; j < n; j++) prices[j] = Math.exp(q[j] / b) / sumExp;
+                } else {
+                    prices[idx] = ticket.getPricePaid();     // order book: each option keeps its own last deal price
                 }
             }
+            addChartPoints(i + 1, prices);
         }
 
         if (historyTable != null) {
             historyTable.setItems(FXCollections.observableArrayList(history));
+            if (selectedHistoryRow >= 0 && selectedHistoryRow < history.size()) {
+                historyTable.getSelectionModel().select(selectedHistoryRow);
+            }
         }
     }
 
     private void fetchAndPopulateOptionsSummary(Event event) {
         if (optionsSummaryContainer == null) return;
 
-        Request request = new Request.Builder()
-                .url(BASE_URL + "/marketData?action=summary&eventName=" + event.getName())
-                .get().build();
+        Request request = ApiClient.get(ApiClient.url("/marketData")
+                .addQueryParameter("action", "summary")
+                .addQueryParameter("eventName", event.getName()).build());
 
         httpClient.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {}
             @Override
             public void onResponse(Call call, Response response) throws IOException {
+                if (viewManager != null && viewManager.handleUnauthorized(response)) return;
                 if (!response.isSuccessful()) return;
-                SummaryResponse data = gson.fromJson(response.body().string(), SummaryResponse.class);
+                String body = response.body().string();
+                SummaryResponse data = gson.fromJson(body, SummaryResponse.class);
+                if (data == null) return;
+
+                // the cards also show total shares, which come from the events list, so they are part of the key
+                StringBuilder key = new StringBuilder(event.getName()).append('|').append(body);
+                for (Option o : event.getOptions()) key.append('|').append(o.getTotalShares());
+                String summaryKey = key.toString();
 
                 Platform.runLater(() -> {
+                    if (summaryKey.equals(lastSummaryKey)) return;
+                    lastSummaryKey = summaryKey;
                     optionsSummaryContainer.getChildren().clear();
                     boolean isOB = event.isOrderBook();
 
@@ -402,22 +478,36 @@ public class EventController implements IRefreshable {
         if (!event.isOrderBook()) {
             buyOrdersTable.getItems().clear();
             sellOrdersTable.getItems().clear();
+            lastOrderBookKey = "";
+            lastOrderBookEvent = "";
             return;
         }
 
-        Request request = new Request.Builder()
-                .url(BASE_URL + "/marketData?action=orderbook&eventName=" + event.getName())
-                .get().build();
+        Request request = ApiClient.get(ApiClient.url("/marketData")
+                .addQueryParameter("action", "orderbook")
+                .addQueryParameter("eventName", event.getName()).build());
 
         httpClient.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {}
             @Override
             public void onResponse(Call call, Response response) throws IOException {
+                if (viewManager != null && viewManager.handleUnauthorized(response))return;
                 if (!response.isSuccessful()) return;
-                OrderBookResponse data = gson.fromJson(response.body().string(), OrderBookResponse.class);
+                String body = response.body().string();
+                OrderBookResponse data = gson.fromJson(body, OrderBookResponse.class);
+                if (data == null) return;
+                String orderBookKey = event.getName() + "|" + body;
 
                 Platform.runLater(() -> {
+                    if (orderBookKey.equals(lastOrderBookKey)) return;
+                    boolean sameEvent = event.getName().equals(lastOrderBookEvent);
+                    lastOrderBookKey = orderBookKey;
+                    lastOrderBookEvent = event.getName();
+
+                    String selectedBid = sameEvent ? orderKey(buyOrdersTable.getSelectionModel().getSelectedItem()) : null;
+                    String selectedAsk = sameEvent ? orderKey(sellOrdersTable.getSelectionModel().getSelectedItem()) : null;
+
                     if (data.bids != null) buyOrdersTable.setItems(FXCollections.observableArrayList(data.bids));
                     if (data.asks != null) sellOrdersTable.setItems(FXCollections.observableArrayList(data.asks));
 
@@ -429,8 +519,39 @@ public class EventController implements IRefreshable {
                         sellPriceCol.setSortType(TableColumn.SortType.ASCENDING);
                         sellOrdersTable.getSortOrder().setAll(sellPriceCol);
                     }
+
+                    reselectOrder(buyOrdersTable, selectedBid);
+                    reselectOrder(sellOrdersTable, selectedAsk);
                 });
             }
         });
+    }
+
+    private void addChartPoints(int x, double[] prices) {
+        priceSeries.getData().add(new XYChart.Data<>(x, prices[0]));
+        if (prices.length > 1) secondPriceSeries.getData().add(new XYChart.Data<>(x, prices[1]));
+    }
+
+    private static int optionIndexOf(List<Option> options, Option option) {
+        if (option == null) return -1;
+        for (int i = 0; i < options.size(); i++) {
+            if (options.get(i).getName().equals(option.getName())) return i;
+        }
+        return -1;
+    }
+
+    private static String orderKey(OBOrder o) {
+        if (o == null) return null;
+        return o.getUserName() + "@" + o.getPrice() + "x" + o.getAmount() + "#" + o.getSequenceId();
+    }
+
+    private static void reselectOrder(TableView<OBOrder> table, String key) {
+        if (key == null) return;
+        for (OBOrder o : table.getItems()) {
+            if (key.equals(orderKey(o))) {
+                table.getSelectionModel().select(o);
+                return;
+            }
+        }
     }
 }

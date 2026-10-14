@@ -1,71 +1,61 @@
+
 package servlet.events;
 
-import com.maneger.SystemManager;
-
+import com.data.events.entities.Event;
 import com.data.events.enums.OrderDirection;
 import com.data.users.entities.User;
-import com.google.gson.Gson;
+import com.maneger.PurchaseReceipt;
+import com.maneger.SystemManager;
+import com.maneger.TradeMonitor;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import servlet.util.ApiUtils;
 
 import java.io.IOException;
 
 @WebServlet(urlPatterns = "/trade")
 public class TradeServlet extends HttpServlet {
 
-    private final Gson gson = new Gson();
-
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
+        User me = ApiUtils.requireUser(request, response);
+        if (me == null) return;
 
-        SystemManager systemManager = (SystemManager) getServletContext().getAttribute("systemManager");
-
-        String loggedInUsername = (String) request.getSession().getAttribute("loggedInUser");
-
-        if (loggedInUsername == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(gson.toJson("Error: User not logged in."));
-            return;
-        }
-
-        String eventName = request.getParameter("eventName");
-        String optionIndexStr = request.getParameter("optionIndex");
-        String amountStr = request.getParameter("amount");
-        String limitPriceStr = request.getParameter("limitPrice");
-        String directionStr = request.getParameter("direction");
-
+        SystemManager sm = ApiUtils.manager(request);
         try {
-            int optionIndex = Integer.parseInt(optionIndexStr);
-            int amount = Integer.parseInt(amountStr);
+            String eventName = request.getParameter("eventName");
+            int optionIndex = Integer.parseInt(request.getParameter("optionIndex"));
+            int amount = Integer.parseInt(request.getParameter("amount"));
+            if (amount <= 0) throw new Exception("Amount must be a positive whole number.");
 
-            User user = systemManager.getUsers().stream()
-                    .filter(u -> u.getName().equalsIgnoreCase(loggedInUsername))
-                    .findFirst()
-                    .orElseThrow(() -> new Exception("User not found in system."));
+            Event event = sm.getEvent(eventName);
+            TradeMonitor<PurchaseReceipt> monitor;
 
-            boolean isLmsr = systemManager.getEvent(eventName).isLmsr();
-
-            Object receipt;
-
-            if (isLmsr) {
-                receipt = systemManager.executePurchase(eventName, optionIndex, amount, user).waitForResult();
+            if (event.isLmsr()) {
+                monitor = sm.executePurchase(eventName, optionIndex, amount, me);
             } else {
-                double limitPrice = Double.parseDouble(limitPriceStr);
-                OrderDirection direction = OrderDirection.valueOf(directionStr.toUpperCase());
-                receipt = systemManager.executeOBTrade(eventName, optionIndex, amount, limitPrice, direction, user).waitForResult();
+                double limitPrice = Double.parseDouble(request.getParameter("limitPrice"));
+                if (!Double.isFinite(limitPrice) || limitPrice <= 0) throw new Exception("Price must be a positive number.");
+                OrderDirection direction;
+                try {
+                    direction = OrderDirection.valueOf(request.getParameter("direction").trim().toUpperCase());
+                } catch (IllegalArgumentException e) {
+                    throw new Exception("Direction must be BUY or SELL.");
+                }
+                monitor = sm.executeOBTrade(eventName, optionIndex, amount, limitPrice, direction, me);
             }
 
-            response.setStatus(HttpServletResponse.SC_OK);
-            response.getWriter().write(gson.toJson(receipt));
+            PurchaseReceipt receipt = monitor.waitForResult();
+            ApiUtils.write(response, HttpServletResponse.SC_OK, receipt);
 
+        } catch (NumberFormatException | NullPointerException e) {
+            ApiUtils.error(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid or missing trade parameters.");
         } catch (Exception e) {
-            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(gson.toJson(e.getMessage()));
+            ApiUtils.error(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
         }
     }
 }
+

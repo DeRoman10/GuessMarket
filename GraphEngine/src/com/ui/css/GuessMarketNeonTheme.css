@@ -106,3 +106,16 @@
 
 .split-pane { -fx-background-color: #090B1A; -fx-box-border: transparent; }
 .split-pane > .split-pane-divider { -fx-background-color: #090B1A, #00DDDD; -fx-background-insets: 0, 0 1 0 1; }
+
+.scroll-pane .viewport {
+    -fx-background-color: transparent;
+}
+
+.dark-list-view {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-control-inner-background: transparent;
+    -fx-border-color: #1A2F73;
+    -fx-border-radius: 4px;
+}
+.dark-list-view .viewport { -fx-background-color: transparent; }

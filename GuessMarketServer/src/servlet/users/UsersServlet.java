@@ -1,45 +1,36 @@
 package servlet.users;
 
-import com.maneger.SystemManager;
+import com.data.users.dto.AllUsersPublicData;
 import com.data.users.entities.User;
-import com.google.gson.Gson;
+import com.maneger.SystemManager;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import servlet.util.ApiUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
+/** GET /users - the OTHER users: name, balance, is-MM. Nothing else about them leaves the server. */
 @WebServlet(urlPatterns = "/users")
 public class UsersServlet extends HttpServlet {
 
-    private final Gson gson = new Gson();
-
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
+        User me = ApiUtils.requireUser(request, response);
+        if (me == null) return;
 
-        SystemManager systemManager = (SystemManager) getServletContext().getAttribute("systemManager");
-        String loggedInUsername = (String) request.getSession().getAttribute("loggedInUser");
-
-        if (loggedInUsername == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(gson.toJson("Error: User not logged in."));
-            return;
-        }
-
-        try {
-            synchronized (systemManager) {
-                List<User> users = systemManager.getUsers();
-                response.setStatus(HttpServletResponse.SC_OK);
-                response.getWriter().write(gson.toJson(users));
+        SystemManager sm = ApiUtils.manager(request);
+        List<AllUsersPublicData> others = new ArrayList<>();
+        synchronized (sm) {
+            for (User u : sm.getUsers()) {
+                others.add(AllUsersPublicData.of(u));
             }
-        } catch (Exception e) {
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            response.getWriter().write(gson.toJson("Server Error: " + e.getMessage()));
         }
+        others.sort((a, b) -> a.getName().compareToIgnoreCase(b.getName()));
+        ApiUtils.write(response, HttpServletResponse.SC_OK, others);
     }
 }

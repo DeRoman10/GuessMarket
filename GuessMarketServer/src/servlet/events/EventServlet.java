@@ -1,13 +1,13 @@
 package servlet.events;
 
-import com.maneger.SystemManager;
 import com.data.events.entities.Event;
-import com.google.gson.Gson;
+import com.maneger.SystemManager;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import servlet.util.ApiUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -15,36 +15,24 @@ import java.util.List;
 @WebServlet(urlPatterns = "/events")
 public class EventServlet extends HttpServlet {
 
-    private final Gson gson = new Gson();
-
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
+        if (ApiUtils.requireUser(request, response) == null) return;
 
-        SystemManager systemManager = (SystemManager) getServletContext().getAttribute("systemManager");
-
-        if (systemManager == null) {
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            response.getWriter().write(gson.toJson("Error: SystemManager not initialized."));
-            return;
-        }
-
+        SystemManager sm = ApiUtils.manager(request);
         String eventName = request.getParameter("name");
 
         try {
-            if (eventName != null && !eventName.trim().isEmpty()) {
-                String detailedStatus = systemManager.getEventDetailedStatus(eventName.trim());
-                response.setStatus(HttpServletResponse.SC_OK);
-                response.getWriter().write(gson.toJson(detailedStatus));
-            } else {
-                List<Event> activeEvents = systemManager.getEvents();
-                response.setStatus(HttpServletResponse.SC_OK);
-                response.getWriter().write(gson.toJson(activeEvents));
+            synchronized (sm) {
+                if (eventName != null && !eventName.trim().isEmpty()) {
+                    ApiUtils.write(response, HttpServletResponse.SC_OK, sm.getEventDetailedStatus(eventName.trim()));
+                } else {
+                    List<Event> events = sm.getEvents();
+                    ApiUtils.write(response, HttpServletResponse.SC_OK, events);
+                }
             }
         } catch (Exception e) {
-            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(gson.toJson(e.getMessage()));
+            ApiUtils.error(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
         }
     }
 }

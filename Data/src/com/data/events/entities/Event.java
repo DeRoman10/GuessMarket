@@ -17,9 +17,6 @@ import java.util.List;
 public class Event implements Serializable {
 
 
-    @XmlElement(name = "id")
-    private String id;
-
     @XmlAttribute(name = "name")
     private String name;
 
@@ -48,6 +45,9 @@ public class Event implements Serializable {
     @XmlTransient
     private User mmUser;
 
+    @XmlTransient
+    private String mmName;
+
     private List<Ticket> history = new ArrayList<>();
     private double totalCommissionCollected = 0.0;
     private Option winningOption = null;
@@ -58,10 +58,9 @@ public class Event implements Serializable {
         this.status = EventStatus.ACTIVE;
     }
 
-    public Event(String id, String name, String description, int commissionRate,
+    public Event(String name, String description, int commissionRate,
                  CommissionType commissionType, EventStatus status,
                  List<Option> options, User mmUser, GMMethodXMLHelper method) {
-        this.id = id;
         this.name = name;
         this.description = description;
         this.commissionRate = commissionRate;
@@ -69,6 +68,7 @@ public class Event implements Serializable {
         this.status = status;
         this.options = options;
         this.mmUser = mmUser;
+        this.mmName = mmUser != null ? mmUser.getName() : null;
         this.method = method;
     }
 
@@ -77,10 +77,6 @@ public class Event implements Serializable {
             this.commissionRate = this.xmlCommission.getValue();
             this.commissionType = this.xmlCommission.getType();
         }
-    }
-
-    public String getId() {
-        return id;
     }
 
     public String getName() {
@@ -162,7 +158,10 @@ public class Event implements Serializable {
 
     public void setMmAccount(User mmUser) {
         this.mmUser = mmUser;
+        this.mmName = mmUser != null ? mmUser.getName() : null;
     }
+
+    public String getMmName() { return mmName; }
     public double getContractBalance() { return contractBalance; }
 
     public void depositToContract(double amount) {
@@ -177,3 +176,4 @@ public class Event implements Serializable {
         }
     }
 }
+

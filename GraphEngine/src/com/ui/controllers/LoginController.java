@@ -1,6 +1,8 @@
 package com.ui.controllers;
 
+import com.ui.core.IRefreshable;
 import com.ui.core.ViewManager;
+import com.ui.core.ApiClient;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.Alert;
@@ -9,17 +11,18 @@ import okhttp3.*;
 
 import java.io.IOException;
 
-public class LoginController {
+public class LoginController implements IRefreshable {
 
     @FXML private TextField usernameField;
 
     private ViewManager viewManager;
-    private final OkHttpClient httpClient = new OkHttpClient();
-    private final String BASE_URL = "http://localhost:8080/GuessMarketServer_Web_exploded";
 
     public void setManagers(ViewManager viewManager) {
         this.viewManager = viewManager;
     }
+
+    @Override
+    public void refreshData() { /* nothing to pull on the login screen */ }
 
     @FXML
     private void handleLogin() {
@@ -29,33 +32,29 @@ public class LoginController {
             showAlert(Alert.AlertType.WARNING, "Login Error", "Please enter a username.");
             return;
         }
-        RequestBody body = RequestBody.create(MediaType.parse("application/json"), "");
 
-        Request request = new Request.Builder()
-                .url(BASE_URL + "/login?username=" + username)
-                .post(body)
-                .build();
+        Request request = ApiClient.post(ApiClient.url("/login").addQueryParameter("username", username).build());
 
-        httpClient.newCall(request).enqueue(new Callback() {
+        ApiClient.http().newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
-                Platform.runLater(() -> showAlert(Alert.AlertType.ERROR, "Connection Error", "Could not connect to the server. Is Tomcat running?"));
+                Platform.runLater(() -> showAlert(Alert.AlertType.ERROR, "Connection Error",
+                        "Could not connect to the server. Is Tomcat running?"));
             }
 
             @Override
             public void onResponse(Call call, Response response) throws IOException {
-                String responseData = response.body().string();
+                String body = ApiClient.message(response.body().string());
+                int code = response.code();
 
                 Platform.runLater(() -> {
-                    if (response.isSuccessful()) {
-                        if (viewManager != null) {
-                            viewManager.navigateTo("USER_DASHBOARD");
-                            viewManager.refreshAllScreens(); // Triggers the first data pull
-                        }
-                    } else if (response.code() == 409) {
-                        showAlert(Alert.AlertType.WARNING, "Login Failed", "Username '" + username + "' is already taken. Please choose another.");
+                    if (code == 200) {
+                        usernameField.clear();
+                        viewManager.onLoggedIn(username);
+                    } else if (code == 409) {
+                        showAlert(Alert.AlertType.WARNING, "Login Failed", body);
                     } else {
-                        showAlert(Alert.AlertType.ERROR, "Server Error", responseData);
+                        showAlert(Alert.AlertType.ERROR, "Server Error", body);
                     }
                 });
             }

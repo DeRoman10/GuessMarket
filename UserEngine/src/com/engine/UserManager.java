@@ -3,25 +3,26 @@ package com.engine;
 import com.data.users.entities.User;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class UserManager {
-    private Map<String, User> users;
+    private final Map<String, User> users = new ConcurrentHashMap<>();
 
-    public UserManager() {
-        this.users = new HashMap<>();
+    private static String key(String name) { return name.trim().toLowerCase(); }
+
+    public boolean addUserIfAbsent(User user) {
+        return users.putIfAbsent(key(user.getName()), user) == null;
     }
 
     public void loadUsers(Collection<User> loadedUsers) {
         users.clear();
         if (loadedUsers != null) {
-            for (User user : loadedUsers) {
-                users.put(user.getName(), user);
-            }
+            for (User user : loadedUsers) users.put(key(user.getName()), user);
         }
     }
 
     public User getUser(String name) throws Exception {
-        User user = users.get(name);
+        User user = (name == null) ? null : users.get(key(name));
         if (user == null) {
             throw new Exception("User '" + name + "' not found in the system.");
         }

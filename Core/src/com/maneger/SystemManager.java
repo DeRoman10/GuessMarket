@@ -1,3 +1,4 @@
+
 package com.maneger;
 
 import com.data.XMLhelpers.GMMethodXMLHelper;
@@ -21,14 +22,13 @@ import com.service.EngineService;
 import java.util.*;
 
 public class SystemManager {
-    // בתרגיל 3 המפתח הוא שם האירוע (name) כי ה-ID בוטל
-    private Map<String, Event> events;
+    private final Map<String, Event> events;
     private Map<String, ITradingEngine> tradingEngines;
     private EngineService engineService;
     private UserManager userManager;
 
     public SystemManager() {
-        this.events = new HashMap<>();
+        this.events = new LinkedHashMap<>();   // stable order for the clients
         this.tradingEngines = new HashMap<>();
         this.engineService = new EngineService();
         this.userManager = new UserManager();
@@ -36,12 +36,27 @@ public class SystemManager {
 
 
 
-    public void addUser(User user) {
-        if (userManager.getAllUsers() == null || userManager.getAllUsers().stream().noneMatch(u -> u.getName().equalsIgnoreCase(user.getName()))) {
-            List<User> currentUsers = new ArrayList<>(userManager.getAllUsers());
-            currentUsers.add(user);
-            userManager.loadUsers(currentUsers);
+    public User registerUser(String name) throws Exception {
+        User user = new User(name);
+        if (!userManager.addUserIfAbsent(user)) {
+            throw new Exception("Username '" + name + "' is already taken. Please choose another.");
         }
+        return user;
+    }
+
+    public void addUser(User user) {
+        userManager.addUserIfAbsent(user);
+    }
+
+    public User getUser(String name) throws Exception {
+        return userManager.getUser(name);
+    }
+
+    public synchronized void depositFunds(User user, double amount) throws Exception {
+        if (!Double.isFinite(amount) || amount <= 0) {
+            throw new Exception("Deposit amount must be a positive number.");
+        }
+        user.deposit(amount, "Funds loaded");
     }
 
     public List<User> getUsers() {
@@ -82,17 +97,6 @@ public class SystemManager {
 
             fundLmsrSubsidy(event);
             fundObInitialInvestment(event);
-
-            for (User user : userManager.getAllUsers()) {
-                if (user.getManagedEvents() != null) {
-                    for (String eventId : user.getManagedEvents()) {
-                        Event ev = events.get(eventId);
-                        if (ev != null) {
-                            ev.setMmAccount(user);
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -103,7 +107,7 @@ public class SystemManager {
         if (!(engine instanceof LmsrEngine lmsrEngine) || mm == null) return;
 
         double subsidy = lmsrEngine.getPotValue(event.getOptions());
-        mm.withdraw(subsidy);
+        mm.withdraw(subsidy, "LMSR subsidy - " + event.getName());
         event.depositToContract(subsidy);
     }
 
@@ -116,7 +120,7 @@ public class SystemManager {
         int baseValue = event.getMethod().getOrderBook().getD();
         if (initialInvestment <= 0 || baseValue <= 0) return;
 
-        mm.withdraw(initialInvestment);
+        mm.withdraw(initialInvestment, "Initial investment - " + event.getName());
         event.depositToContract(initialInvestment);
         double pairsToMint = initialInvestment / (double) baseValue;
 
@@ -146,7 +150,7 @@ public class SystemManager {
         List<Option> options = List.of(new Option(option1Name.trim()), new Option(option2Name.trim()));
         GMMethodXMLHelper method = new GMMethodXMLHelper(new GMlmsrXMLhelper(liquidityParam));
 
-        Event event = new Event(name.trim(), name.trim(), description.trim(), commissionRate,
+        Event event = new Event(name.trim(), description.trim(), commissionRate,
                 commissionType, EventStatus.ACTIVE, options, creator, method);
 
         events.put(name.trim(), event);
@@ -176,7 +180,7 @@ public class SystemManager {
         List<Option> options = List.of(new Option(option1Name.trim()), new Option(option2Name.trim()));
         GMMethodXMLHelper method = new GMMethodXMLHelper(new GMOrderBookXMLHelper(allowMint, initialInvestment, baseValue));
 
-        Event event = new Event(name.trim(), name.trim(), description.trim(), commissionRate,
+        Event event = new Event(name.trim(), description.trim(), commissionRate,
                 commissionType, EventStatus.ACTIVE, options, creator, method);
 
         events.put(name.trim(), event);
@@ -198,7 +202,7 @@ public class SystemManager {
     }
 
 
-    public List<Event> getEvents() {
+    public synchronized List<Event> getEvents() {
         return new ArrayList<>(events.values());
     }
 
@@ -212,7 +216,7 @@ public class SystemManager {
         return activeEvents;
     }
 
-    public Event getEvent(String eventName) throws Exception {
+    public synchronized Event getEvent(String eventName) throws Exception {
         Event event = events.get(eventName);
         if (event == null) {
             throw new Exception("Current event '" + eventName + "' not in the Market.");
@@ -220,14 +224,14 @@ public class SystemManager {
         return event;
     }
 
-    private void depositToMm(Event event, double amount) {
+    private void depositToMm(Event event, double amount, String reason) {
         User mm = event.getMmAccount();
         if (mm != null && amount != 0) {
-            mm.deposit(amount);
+            mm.deposit(amount, reason + " - " + event.getName());
         }
     }
 
-    public TradeMonitor<PurchaseReceipt> executePurchase(String eventName, int optionIndex, int amount, User buyer) throws Exception {
+    public synchronized TradeMonitor<PurchaseReceipt> executePurchase(String eventName, int optionIndex, int amount, User buyer) throws Exception {
         Event event = getEvent(eventName);
         ITradingEngine engine = tradingEngines.get(eventName);
 
@@ -241,7 +245,7 @@ public class SystemManager {
 
         engineService.submitTask(() -> {
             try {
-                synchronized (event) {
+                synchronized (this) {
                     if (event.getStatus() != EventStatus.ACTIVE) return null;
 
                     Option selectedOption = event.getOptions().get(optionIndex);
@@ -255,7 +259,7 @@ public class SystemManager {
                         if (buyer.isBlocked()) {
                             throw new Exception("Account is locked due to a negative balance. No further actions allowed until balance is positive.");
                         }
-                        buyer.withdraw(totalCost);
+                        buyer.withdraw(totalCost, String.format("Bought %d x %s - %s", amount, selectedOption.getName(), eventName));
                         event.depositToContract(sharesCost);
 
                         com.data.users.entities.Portfolio portfolio = buyer.getPortfolios().get(eventName);
@@ -272,7 +276,7 @@ public class SystemManager {
                     }
 
                     if (commissionCost > 0) {
-                        depositToMm(event, commissionCost);
+                        depositToMm(event, commissionCost, "Commission received");
                         event.addCommission(commissionCost);
                     }
 
@@ -290,13 +294,24 @@ public class SystemManager {
         return monitor;
     }
 
-    public TradeMonitor<PurchaseReceipt> executeOBTrade(String eventName, int optionIndex, int amount, double limitPrice, OrderDirection direction, User user) throws Exception {
+    public synchronized TradeMonitor<PurchaseReceipt> executeOBTrade(String eventName, int optionIndex, int amount, double limitPrice, OrderDirection direction, User user) throws Exception {
         Event event = getEvent(eventName);
         ITradingEngine engine = tradingEngines.get(eventName);
 
         if (!(engine instanceof com.engine.OrderBookEngine obEngine)) {
             throw new Exception("Event is not an Order Book event.");
         }
+
+        if (user == null) throw new Exception("User is required to place an order.");
+        if (optionIndex < 0 || optionIndex >= event.getOptions().size()) throw new Exception("Invalid option selection.");
+        if (amount <= 0) throw new Exception("Amount must be a positive whole number.");
+        if (direction == null) throw new Exception("Order direction (BUY or SELL) is required.");
+        if (!Double.isFinite(limitPrice) || limitPrice <= 0) throw new Exception("Price must be a positive number.");
+        double maxPrice = event.getBaseValue() - 0.01;
+        if (limitPrice > maxPrice + 1e-9) {
+            throw new Exception(String.format("Price cannot be higher than %.2f (base value %.2f minus 0.01).", maxPrice, event.getBaseValue()));
+        }
+        if (event.getStatus() != EventStatus.ACTIVE) throw new Exception("Event '" + eventName + "' is no longer active.");
 
         if (user.isBlocked()) {
             throw new Exception("Account is locked due to a negative balance.");
@@ -306,7 +321,7 @@ public class SystemManager {
 
         engineService.submitTask(() -> {
             try {
-                synchronized (event) {
+                synchronized (this) {
                     if (event.getStatus() != EventStatus.ACTIVE) throw new Exception("Event closed.");
 
                     Option selectedOption = event.getOptions().get(optionIndex);
@@ -322,7 +337,7 @@ public class SystemManager {
                         p.getHoldings().put(selectedOption.getName(), sharesOwned - amount);
                     } else {
                         double cost = amount * limitPrice;
-                        user.withdraw(cost);
+                        user.withdraw(cost, String.format("Buy order %d x %s @ %.2f - %s", amount, selectedOption.getName(), limitPrice, eventName));
                     }
 
                     OBOrder newOrder = new OBOrder(limitPrice, amount, user, direction, selectedOption);
@@ -339,11 +354,23 @@ public class SystemManager {
         return monitor;
     }
 
-    public TradeMonitor<FinalReceipt> closeEvent(String eventName, int winningOptionIndex) throws Exception {
+    public synchronized TradeMonitor<FinalReceipt> closeEvent(String eventName, int winningOptionIndex, User requester) throws Exception {
+        Event event = getEvent(eventName);
+        if (requester == null || event.getMmAccount() == null
+                || !event.getMmAccount().getName().equalsIgnoreCase(requester.getName())) {
+            throw new Exception("Only the Market Maker of '" + eventName + "' can close it.");
+        }
+        return closeEvent(eventName, winningOptionIndex);
+    }
+
+    public synchronized TradeMonitor<FinalReceipt> closeEvent(String eventName, int winningOptionIndex) throws Exception {
         Event event = getEvent(eventName);
 
         if (event.getStatus() != EventStatus.ACTIVE) {
             throw new Exception("Event is not active.");
+        }
+        if (winningOptionIndex < 0 || winningOptionIndex >= event.getOptions().size()) {
+            throw new Exception("Invalid winning option.");
         }
 
         TradeMonitor<FinalReceipt> monitor = new TradeMonitor<>();
@@ -351,13 +378,13 @@ public class SystemManager {
         engineService.submitTask(() -> {
             FinalReceipt receipt = null;
             try {
-                synchronized (event) {
+                synchronized (this) {
                     if (event.getStatus() != EventStatus.ACTIVE) {
                         throw new Exception("Event was already closed.");
                     }
 
-                    event.setStatus(EventStatus.CLOSED);
                     Option winningOption = event.getOptions().get(winningOptionIndex);
+                    event.setStatus(EventStatus.CLOSED);
                     event.setWinningOption(winningOption);
 
                     double baseValue = event.getBaseValue();
@@ -375,7 +402,7 @@ public class SystemManager {
                                 double netPayout = grossPayout - userCommission;
 
                                 event.withdrawFromContract(grossPayout);
-                                user.deposit(netPayout);
+                                user.deposit(netPayout, "Payout - " + eventName);
                                 portfolio.setRevenue(netPayout);
 
                                 totalMarketNetPayout += netPayout;
@@ -385,13 +412,13 @@ public class SystemManager {
                     }
 
                     if (totalMarketCommission > 0) {
-                        depositToMm(event, totalMarketCommission);
+                        depositToMm(event, totalMarketCommission, "Commission received (on close)");
                         event.addCommission(totalMarketCommission);
                     }
 
                     double leftover = event.getContractBalance();
                     if (leftover > 0) {
-                        depositToMm(event, leftover);
+                        depositToMm(event, leftover, "Event contract remainder");
                         event.withdrawFromContract(leftover);
                     }
 
@@ -599,7 +626,6 @@ public class SystemManager {
         }
         return hasOrders;
     }
-
     public EngineService getEngineService() {
         return this.engineService;
     }

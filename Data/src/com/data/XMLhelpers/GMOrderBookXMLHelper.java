@@ -9,7 +9,10 @@ public class GMOrderBookXMLHelper implements Serializable {
     private boolean allowMint;
 
     @XmlAttribute(name = "initial")
-    private int initial;
+    private Integer initial; // Changed to Integer to check for null
+
+    @XmlAttribute(name = "inital")
+    private Integer inital;
 
     @XmlAttribute(name = "d")
     private int d;
@@ -23,6 +26,12 @@ public class GMOrderBookXMLHelper implements Serializable {
     }
 
     public boolean isAllowMint() { return allowMint; }
-    public int getInitial() { return initial; }
+
+    public int getInitial() {
+        if (initial != null) return initial;
+        if (inital != null) return inital;
+        return 0;
+    }
+
     public int getD() { return d; }
 }

@@ -1,15 +1,20 @@
 <component name="ArtifactManager">
-  <artifact type="exploded-war" name="GuessMarketServer:Web exploded">
-    <output-path>$PROJECT_DIR$/out/artifacts/GuessMarketServer_Web_exploded</output-path>
+  <artifact type="exploded-war" build-on-make="true" name="GuessMarketServer">
+    <output-path>$PROJECT_DIR$/out/artifacts/GuessMarketServer</output-path>
     <root id="root">
       <element id="javaee-facet-resources" facet="GuessMarketServer/web/Web" />
       <element id="directory" name="WEB-INF">
         <element id="directory" name="classes">
           <element id="module-output" name="GuessMarketServer" />
+          <element id="module-output" name="Core" />
+          <element id="module-output" name="Data" />
+          <element id="module-output" name="TradingEngine" />
+          <element id="module-output" name="FileHandler" />
+          <element id="module-output" name="UserEngine" />
         </element>
         <element id="directory" name="lib">
-          <element id="library" level="project" name="servlet-api" />
           <element id="file-copy" path="$PROJECT_DIR$/lib/gson-2.14.0.jar" />
+          <element id="library" level="project" name="jaxb" />
         </element>
       </element>
       <element id="directory" name="lib" />

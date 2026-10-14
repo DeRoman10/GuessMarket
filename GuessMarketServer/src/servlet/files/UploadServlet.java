@@ -2,9 +2,8 @@ package servlet.files;
 
 import com.data.files.entities.Market;
 import com.data.users.entities.User;
-import com.handlers.*;
+import com.handlers.XmlFileControl;
 import com.maneger.SystemManager;
-import com.google.gson.Gson;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.MultipartConfig;
 import jakarta.servlet.annotation.WebServlet;
@@ -12,59 +11,65 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.Part;
+import jakarta.xml.bind.JAXBContext;
+import servlet.util.ApiUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
 
 @WebServlet(urlPatterns = "/upload")
-@MultipartConfig
+@MultipartConfig(fileSizeThreshold = 5 * 1024 * 1024, maxFileSize = 5 * 1024 * 1024, maxRequestSize = 6 * 1024 * 1024)
 public class UploadServlet extends HttpServlet {
-
-    private final Gson gson = new Gson();
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
+        User uploader = ApiUtils.requireUser(request, response);
+        if (uploader == null) return;
 
-        SystemManager systemManager = (SystemManager) getServletContext().getAttribute("systemManager");
-
-        String loggedInUsername = (String) request.getSession().getAttribute("loggedInUser");
-        if (loggedInUsername == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(gson.toJson("Error: User not logged in."));
-            return;
-        }
-
+        SystemManager sm = ApiUtils.manager(request);
         try {
             Part filePart = request.getPart("file");
             if (filePart == null) {
-                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                response.getWriter().write(gson.toJson("Error: No file uploaded."));
+                ApiUtils.error(response, HttpServletResponse.SC_BAD_REQUEST, "Error: No file uploaded.");
                 return;
             }
+            XmlFileControl.validateFileName(filePart.getSubmittedFileName());
 
-            Market loadedMarket;
-            try (InputStream fileContent = filePart.getInputStream()) {
-                loadedMarket = SystemFileHandler.loadXmlData(fileContent);
+            Market market;
+            try {
+                byte[] bytes;
+                try (InputStream in = filePart.getInputStream()) {
+                    bytes = in.readAllBytes();
+                }
+                String xml = new String(bytes, StandardCharsets.UTF_8)
+                        .replaceAll("xsi:[a-zA-Z]+=\"[^\"]*\"", "");
+
+                market = (Market) JAXBContext.newInstance(Market.class)
+                        .createUnmarshaller().unmarshal(new StringReader(xml));
+            } catch (Exception parseError) {
+                parseError.printStackTrace();
+                throw new Exception("The file is not a valid Guess Market XML file (" + rootMessage(parseError) + ").");
             }
 
-            XmlFileControl.validateMarketData(loadedMarket);
-            User uploader = systemManager.getUsers().stream()
-                    .filter(u -> u.getName().equalsIgnoreCase(loggedInUsername))
-                    .findFirst()
-                    .orElseThrow(() -> new Exception("Uploader user not found in system."));
 
-            synchronized (systemManager) {
-                systemManager.loadMarketData(loadedMarket, uploader);
+            XmlFileControl.validateMarketData(market);
+
+            synchronized (sm) {
+                sm.loadMarketData(market, uploader);
             }
-
-            response.setStatus(HttpServletResponse.SC_OK);
-            response.getWriter().write(gson.toJson("File uploaded and processed successfully."));
+            ApiUtils.write(response, HttpServletResponse.SC_OK,
+                    "File is valid. " + market.getEvents().size() + " event(s) were added; you are their Market Maker.");
 
         } catch (Exception e) {
-            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(gson.toJson("Upload Failed: " + e.getMessage()));
+            e.printStackTrace();
+            ApiUtils.error(response, HttpServletResponse.SC_BAD_REQUEST, "Upload Failed: " + e.getMessage());
         }
+    }
+
+    private static String rootMessage(Throwable t) {
+        while (t.getCause() != null) t = t.getCause();
+        return t.getMessage() != null ? t.getMessage() : t.getClass().getSimpleName();
     }
 }
