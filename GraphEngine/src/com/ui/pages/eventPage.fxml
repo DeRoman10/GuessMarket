@@ -6,6 +6,7 @@
 <?import javafx.scene.layout.*?>
 
 <ScrollPane fitToWidth="true" fitToHeight="true"
+            prefWidth="1050.0" prefHeight="700.0"
             style="-fx-background: transparent; -fx-background-color: transparent;"
             xmlns="http://javafx.com/javafx/21"
             xmlns:fx="http://javafx.com/fxml/1"
@@ -15,7 +16,7 @@
 
 
          <left>
-            <VBox fx:id="eventsListPanel" spacing="10.0" minWidth="260.0" prefWidth="300.0" maxWidth="320.0" styleClass="side-panel">
+            <VBox fx:id="eventsListPanel" spacing="10.0" minWidth="320.0" prefWidth="350.0" maxWidth="400.0" styleClass="side-panel">
 
                <!-- FIX: Stacked vertically inside a VBox so text is never truncated -->
                <VBox spacing="10.0" styleClass="filter-bar">

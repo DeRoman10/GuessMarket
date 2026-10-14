@@ -1,73 +1,70 @@
+
 package com.handlers;
 
 import com.data.events.entities.Event;
+import com.data.events.entities.Option;
 import com.data.files.entities.Market;
-import com.data.users.entities.User;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.Set;
 
 public abstract class XmlFileControl {
 
     private static final int MIN_COMMISSION = 0;
     private static final int MAX_COMMISSION = 90;
     private static final int MIN_OPTIONS = 2;
-    private static final double NOT_POSITIVE_BALANCE = 0;
+
+    public static void validateFileName(String fileName) throws Exception {
+        if (fileName == null || !fileName.trim().toLowerCase().endsWith(".xml")) {
+            throw new Exception("Validation Error: the file must be an XML file (.xml).");
+        }
+    }
 
     public static void validateMarketData(Market market) throws Exception {
         if (market == null || market.getEvents() == null || market.getEvents().isEmpty()) {
             throw new Exception("Validation Error: The XML file is empty or missing events.");
         }
 
-        Set<String> existingIds = new HashSet<>();
-        Set<String> existingUserNames = new HashSet<>();
-        Map<String, Integer> eventMmCount = new HashMap<>();
-
+        Set<String> existingNames = new HashSet<>();
         for (Event event : market.getEvents()) {
-            if (!existingIds.add(event.getId())) {
-                throw new Exception(String.format("Validation Error: Duplicate Event ID found: '%s'. Event IDs must be unique.", event.getId()));
+            String name = event.getName();
+            if (name == null || name.isBlank()) {
+                throw new Exception("Validation Error: an event without a name was found.");
+            }
+
+            if (!existingNames.add(name)) {
+                throw new Exception(String.format("Validation Error: Duplicate Event Name found: '%s'. Event names must be unique.", name));
             }
 
             if (event.getCommissionRate() < MIN_COMMISSION || event.getCommissionRate() > MAX_COMMISSION) {
-                throw new Exception(String.format("Validation Error: Commission rate for event '%s' must be between %d and %d.", event.getName(), MIN_COMMISSION, MAX_COMMISSION));
+                throw new Exception(String.format("Validation Error: Commission rate for event '%s' must be between %d and %d.", name, MIN_COMMISSION, MAX_COMMISSION));
             }
 
             if (event.getOptions() == null || event.getOptions().size() < MIN_OPTIONS) {
-                throw new Exception(String.format("Validation Error: Event '%s' must have at least %d options.", event.getName(), MIN_OPTIONS));
+                throw new Exception(String.format("Validation Error: Event '%s' must have at least %d options.", name, MIN_OPTIONS));
             }
-            eventMmCount.put(event.getId(), 0);
-        }
-
-        if (market.getUsers() == null || market.getUsers().isEmpty()) {
-            throw new Exception("Validation Error: The XML file is missing user definitions.");
-        }
-
-        for (User user : market.getUsers()) {
-
-            if (!existingUserNames.add(user.getName())) {
-                throw new Exception(String.format("Validation Error: Duplicate user name found: '%s'.", user.getName()));
-            }
-
-            if (user.getBalance() <= NOT_POSITIVE_BALANCE) {
-                throw new Exception(String.format("Validation Error: User '%s' must have an initial balance > 0.", user.getName()));
-            }
-
-            if (user.getManagedEvents() != null) {
-                for (String managedEventId : user.getManagedEvents()) {
-                    if (!eventMmCount.containsKey(managedEventId)) {
-                        throw new Exception(String.format("Validation Error: User '%s' is assigned as MM for a non-existent event ID: %s.", user.getName(), managedEventId));
-                    }
-                    eventMmCount.put(managedEventId, eventMmCount.get(managedEventId) + 1);
+            Set<String> optionNames = new HashSet<>();
+            for (Option o : event.getOptions()) {
+                if (o.getName() == null || o.getName().isBlank() || !optionNames.add(o.getName().trim().toLowerCase())) {
+                    throw new Exception(String.format("Validation Error: Event '%s' has an empty or duplicate option name.", name));
                 }
             }
-        }
 
-        for (Event event : market.getEvents()) {
-            int mmCount = eventMmCount.get(event.getId());
-            if (mmCount != 1) {
-                throw new Exception(String.format(
-                        "Validation Error: Event '%s' must be assigned exactly one Market Maker (found %d).",
-                        event.getName(), mmCount));
+            if (!event.isLmsr() && !event.isOrderBook()) {
+                throw new Exception(String.format("Validation Error: Event '%s' has no trading method.", name));
+            }
+            if (event.isLmsr() && event.getMethod().getLmsr().getB() <= 0) {
+                throw new Exception(String.format("Validation Error: Event '%s': liquidity (b) must be a positive number.", name));
+            }
+            if (event.isOrderBook()) {
+                if (event.getMethod().getOrderBook().getD() <= 0) {
+                    throw new Exception(String.format("Validation Error: Event '%s': base value (d) must be a positive number.", name));
+                }
+                if (event.getMethod().getOrderBook().getInitial() < 0) {
+                    throw new Exception(String.format("Validation Error: Event '%s': initial investment cannot be negative.", name));
+                }
             }
         }
     }
 }
+

@@ -116,7 +116,7 @@ public class OrderBookEngine implements ITradingEngine {
         User buyer = buyerOrder.getUser();
         User seller = sellerOrder.getUser();
         Option option = buyerOrder.getOption();
-        String eventId = event.getId();
+        String eventId = event.getName();   // portfolios are keyed by event NAME (v3 has no id)
 
         double grossCost = tradeAmount * executionPrice;
         double commission = 0.0;
@@ -126,17 +126,17 @@ public class OrderBookEngine implements ITradingEngine {
         }
 
         double diff = (buyerOrder.getPrice() - executionPrice) * tradeAmount;
-        if (diff > 0) buyer.deposit(diff);
+        if (diff > 0) buyer.deposit(diff, "Price improvement refund - " + event.getName());
 
         if (commission > 0) {
-            buyer.withdraw(commission);
+            buyer.withdraw(commission, "Commission paid - " + event.getName());
             if (event.getMmAccount() != null) {
-                event.getMmAccount().deposit(commission);
+                event.getMmAccount().deposit(commission, "Commission received - " + event.getName());
                 event.addCommission(commission);
             }
         }
 
-        seller.deposit(grossCost);
+        seller.deposit(grossCost, String.format("Sold %d x %s @ %.2f - %s", tradeAmount, option.getName(), executionPrice, event.getName()));
 
 
         Portfolio buyerPortfolio = buyer.getPortfolios().computeIfAbsent(eventId, k -> new Portfolio());
@@ -276,11 +276,11 @@ public class OrderBookEngine implements ITradingEngine {
     }
 
     private double[] processMintPayments(OBOrder newBuyer, OBOrder restingBuyer, int mintAmount, double newBuyerPaidPrice, double restingPrice, Event event) {
-        event.depositToContract(baseValueD * mintAmount); // CHANGED — was event.getMmAccount().deposit(...)
+        event.depositToContract(baseValueD * mintAmount); // CHANGED â€” was event.getMmAccount().deposit(...)
 
         double diff = (newBuyer.getPrice() - newBuyerPaidPrice) * mintAmount;
         if (diff > 0) {
-            newBuyer.getUser().deposit(diff);
+            newBuyer.getUser().deposit(diff, "Price improvement refund - " + event.getName());
         }
 
         double newBuyerCost = newBuyerPaidPrice * mintAmount;
@@ -294,19 +294,19 @@ public class OrderBookEngine implements ITradingEngine {
             restingBuyerComm = restingBuyerCost * rate;
 
             if (event.getMmAccount() != null) {
-                event.getMmAccount().deposit(newBuyerComm + restingBuyerComm);
+                event.getMmAccount().deposit(newBuyerComm + restingBuyerComm, "Commission received - " + event.getName());
                 event.addCommission(newBuyerComm + restingBuyerComm);
             }
 
-            newBuyer.getUser().withdraw(newBuyerComm);
-            restingBuyer.getUser().withdraw(restingBuyerComm);
+            newBuyer.getUser().withdraw(newBuyerComm, "Commission paid - " + event.getName());
+            restingBuyer.getUser().withdraw(restingBuyerComm, "Commission paid - " + event.getName());
         }
 
         return new double[]{newBuyerComm, restingBuyerComm};
     }
 
     private void updateUserPortfolio(OBOrder buyer, Event event, int mintAmount, double cost, double commission) {
-        Portfolio portfolio = buyer.getUser().getPortfolios().computeIfAbsent(event.getId(), k -> new com.data.users.entities.Portfolio());
+        Portfolio portfolio = buyer.getUser().getPortfolios().computeIfAbsent(event.getName(), k -> new com.data.users.entities.Portfolio());
         String optionName = buyer.getOption().getName();
 
         double currentHoldings = portfolio.getHoldings().getOrDefault(optionName, 0.0);
@@ -327,3 +327,4 @@ public class OrderBookEngine implements ITradingEngine {
         lastPrices.put(oppositeOption.getName(), restingPrice);
     }
 }
+

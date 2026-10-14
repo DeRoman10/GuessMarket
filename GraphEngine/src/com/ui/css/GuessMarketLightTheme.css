@@ -66,3 +66,21 @@
 
 .split-pane { -fx-background-color: #FFFFFF; -fx-box-border: transparent; }
 .split-pane > .split-pane-divider { -fx-background-color: #FFFFFF, #DDDDDD; -fx-background-insets: 0, 0 1 0 1; }
+
+.scroll-pane .viewport {
+    -fx-background-color: transparent;
+}
+
+.list-view {
+    -fx-background-color: #FFFFFF;
+    -fx-background: #FFFFFF;
+    -fx-control-inner-background: #FFFFFF;
+    -fx-border-color: #DDDDDD;
+    -fx-border-radius: 4px;
+}
+.list-view .viewport {
+    -fx-background-color: transparent;
+}
+.list-cell:empty {
+    -fx-background-color: transparent;
+}

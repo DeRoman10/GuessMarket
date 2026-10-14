@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="war" build-on-make="true" name="GuessMarketServer archive">
+    <output-path>$PROJECT_DIR$/out/artifacts/GuessMarketServer</output-path>
+    <root id="archive" name="GuessMarketServer.war">
+      <element id="artifact" artifact-name="GuessMarketServer" />
+    </root>
+  </artifact>
+</component>
